@@ -65,7 +65,7 @@ jobs:
         run: |
          terraform init -reconfigure \
          -backend-config="bucket=stockwiz-tfstate" \
-         -backend-config="key=dev/terraform.tfstate" \
+         -backend-config="key=${ENV}/terraform.tfstate" \
          -backend-config="region=${AWS_REGION}" \
          -backend-config="encrypt=true"
 
@@ -142,7 +142,7 @@ jobs:
         run: |
           terraform init -reconfigure \
             -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=test/terraform.tfstate" \
+            -backend-config="key=${ENV}/terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \
             -backend-config="encrypt=true"
       - name: Terraform apply (Test)
@@ -207,7 +207,7 @@ jobs:
         run: |
           terraform init -reconfigure \
             -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="key=${ENV}/terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \
             -backend-config="encrypt=true"
 
