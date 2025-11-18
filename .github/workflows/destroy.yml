@@ -40,14 +40,15 @@ jobs:
 
     - name: Terraform Init
       working-directory: ./infra
-      run: terraform init
+      run: terraform init -input=false -force-copy
 
     - name: Terraform Destroy
       working-directory: ./infra
-      run: terraform destroy -auto-approve -var-file=env/dev.tfvars -lock=false
+      run: terraform destroy -auto-approve -var-file=env/dev.tfvars -refresh-only=false
 
     - name: Cleanup Complete
       run: |
 
         echo "Infrastructure destroyed successfully!"
+
 
