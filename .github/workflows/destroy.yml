@@ -44,9 +44,10 @@ jobs:
 
     - name: Terraform Destroy
       working-directory: ./infra
-      run: terraform destroy -auto-approve -var-file=env/dev.tfvars
+      run: terraform destroy -auto-approve -var-file=env/dev.tfvars -refresh-only=false
 
     - name: Cleanup Complete
       run: |
 
         echo "Infrastructure destroyed successfully!"
+
