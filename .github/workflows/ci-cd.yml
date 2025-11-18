@@ -62,7 +62,13 @@ jobs:
       # ---------------------------------------------------------
       - name: Terraform init (Dev)
         working-directory: ./infra
-        run: terraform init -reconfigure -input=false
+        run: |
+         terraform init -reconfigure \
+         -backend-config="bucket=stockwiz-tfstate" \
+         -backend-config="key=dev/terraform.tfstate" \
+         -backend-config="region=${AWS_REGION}" \
+         -backend-config="encrypt=true"
+
       - name: Terraform apply (Dev infra resources)
         working-directory: ./infra
         run: terraform apply -auto-approve -var-file=env/dev.tfvars
@@ -133,7 +139,12 @@ jobs:
       # Terraform crea repos/test si faltan
       - name: Terraform init (Test)
         working-directory: ./infra
-        run: terraform init -reconfigure -input=false
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=stockwiz-tfstate" \
+            -backend-config="key=test/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="encrypt=true"
       - name: Terraform apply (Test)
         working-directory: ./infra
         run: terraform apply -auto-approve -var-file=env/test.tfvars
@@ -161,9 +172,9 @@ jobs:
 
       - name: Deploy ECS (Test)
         run: |
-          aws ecs.update-service --cluster ecs-cluster-test --service test-api-gateway-svc --force-new-deployment
-          aws ecs.update-service --cluster ecs-cluster-test --service test-product-service-svc --force-new-deployment
-          aws ecs.update-service --cluster ecs-cluster-test --service test-inventory-service-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-test --service test-api-gateway-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-test --service test-product-service-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-test --service test-inventory-service-svc --force-new-deployment
 
   ###########################################################
   # 3) PROD
@@ -193,7 +204,13 @@ jobs:
       # Terraform crea repos/prod si faltan
       - name: Terraform init (Prod)
         working-directory: ./infra
-        run: terraform init -reconfigure -input=false
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=stockwiz-tfstate" \
+            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="encrypt=true"
+
 
       - name: Terraform apply (Prod)
         working-directory: ./infra
@@ -222,6 +239,6 @@ jobs:
 
       - name: Deploy ECS (Prod)
         run: |
-          aws ecs.update-service --cluster ecs-cluster-prod --service prod-api-gateway-svc --force-new-deployment
-          aws ecs.update-service --cluster ecs-cluster-prod --service prod-product-service-svc --force-new-deployment
-          aws ecs.update-service --cluster ecs-cluster-prod --service prod-inventory-service-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-prod --service prod-api-gateway-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-prod --service prod-product-service-svc --force-new-deployment
+          aws ecs update-service --cluster ecs-cluster-prod --service prod-inventory-service-svc --force-new-deployment
