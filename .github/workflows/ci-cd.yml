@@ -62,7 +62,7 @@ jobs:
       # ---------------------------------------------------------
       - name: Terraform init (Dev)
         working-directory: ./infra
-        run: terraform init
+        run: terraform init -reconfigure -input=false
       - name: Terraform apply (Dev infra resources)
         working-directory: ./infra
         run: terraform apply -auto-approve -var-file=env/dev.tfvars
@@ -133,7 +133,7 @@ jobs:
       # Terraform crea repos/test si faltan
       - name: Terraform init (Test)
         working-directory: ./infra
-        run: terraform init 
+        run: terraform init -reconfigure -input=false
       - name: Terraform apply (Test)
         working-directory: ./infra
         run: terraform apply -auto-approve -var-file=env/test.tfvars
@@ -193,7 +193,7 @@ jobs:
       # Terraform crea repos/prod si faltan
       - name: Terraform init (Prod)
         working-directory: ./infra
-        run: terraform init 
+        run: terraform init -reconfigure -input=false
 
       - name: Terraform apply (Prod)
         working-directory: ./infra
