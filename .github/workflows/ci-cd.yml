@@ -134,8 +134,7 @@ jobs:
       # Terraform crea repos/test si faltan
       - name: Terraform init (Test)
         working-directory: ./infra
-        run: terraform init -input=false
-
+        run: terraform init 
       - name: Terraform apply (Test)
         working-directory: ./infra
         run: terraform apply -auto-approve -var-file=env/test.tfvars
