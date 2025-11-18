@@ -65,3 +65,5 @@ jobs:
 
 
 
+    - name: Destroy complete
+      run: echo "Environment destroyed successfully!"
