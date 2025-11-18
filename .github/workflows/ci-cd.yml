@@ -62,7 +62,7 @@ jobs:
       # ---------------------------------------------------------
       - name: Terraform init (Dev)
         working-directory: ./infra
-        run: terraform init -reconfigure
+        run: terraform init -reconfigure -input=false
 
       - name: Terraform apply (Dev infra resources)
         working-directory: ./infra
@@ -134,7 +134,7 @@ jobs:
       # Terraform crea repos/test si faltan
       - name: Terraform init (Test)
         working-directory: ./infra
-        run: terraform init -reconfigure
+        run: terraform init -reconfigure -input=false
 
       - name: Terraform apply (Test)
         working-directory: ./infra
