@@ -39,13 +39,14 @@ jobs:
       uses: hashicorp/setup-terraform@v3
 
     - name: Terraform Init
-      working-directory: ./terraform
+      working-directory: ./infra
       run: terraform init
 
     - name: Terraform Destroy
-      working-directory: ./terraform
+      working-directory: ./infra
       run: terraform destroy -auto-approve -var-file=env/dev.tfvars
 
     - name: Cleanup Complete
       run: |
+
         echo "Infrastructure destroyed successfully!"
