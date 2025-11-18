@@ -6,4 +6,10 @@ terraform {
       version = "~> 6.0"
     }
   }
+backend "s3" {
+    bucket = "stockwiz-dev-tf-backend"
+    key    = "dev/terraform.tfstate"
+    region = "us-east-1"
+  }
 }
+
