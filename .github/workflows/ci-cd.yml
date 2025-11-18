@@ -1,8 +1,8 @@
 name: CI-CD Multi Env
 
 on:
-  push:
-    branches: [ develop ]   # un solo trigger para todo el flujo
+  #push:
+    #branches: [ develop ]   # un solo trigger para todo el flujo
   workflow_dispatch:        # opcional, para correrlo a mano si querés
 
 jobs:
