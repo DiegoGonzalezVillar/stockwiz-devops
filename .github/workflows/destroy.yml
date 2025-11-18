@@ -3,6 +3,14 @@ name: Destroy AWS Infrastructure
 on:
   workflow_dispatch:
     inputs:
+      env:
+        description: "Environment to destroy (dev/test/prod)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
       confirm_destroy:
         description: 'Type "destroy" to confirm'
         required: true
@@ -10,19 +18,21 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  TF_BUCKET: stockwiz-tfstate
+  TF_DDB: stockwiz-tf-locks
 
 jobs:
   destroy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Validate confirmation
       run: |
         if [ "${{ github.event.inputs.confirm_destroy }}" != "destroy" ]; then
-          echo "Destruction cancelled. You must type 'destroy' to confirm."
+          echo "Destruction cancelled."
           exit 1
         fi
-        echo "Confirmation received. Proceeding with infrastructure destruction..."
+        echo "Confirmation OK"
 
     - name: Checkout code
       uses: actions/checkout@v3
@@ -38,17 +48,19 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Init
+    - name: Terraform Init (remote backend)
       working-directory: ./infra
-      run: terraform init -input=false -force-copy
+      run: |
+        terraform init -reconfigure \
+          -backend-config="bucket=${TF_BUCKET}" \
+          -backend-config="key=${{ github.event.inputs.env }}/terraform.tfstate" \
+          -backend-config="region=${AWS_REGION}" \
+          -backend-config="dynamodb_table=${TF_DDB}" \
+          -backend-config="encrypt=true"
 
     - name: Terraform Destroy
       working-directory: ./infra
-      run: terraform destroy -auto-approve -var-file=env/dev.tfvars -refresh-only=false
+      run: terraform destroy -auto-approve -var-file=env/${{ github.event.inputs.env }}.tfvars
 
-    - name: Cleanup Complete
-      run: |
-
-        echo "Infrastructure destroyed successfully!"
-
-
+    - name: Destroy complete
+      run: echo "Environment destroyed successfully!"
