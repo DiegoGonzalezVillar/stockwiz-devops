@@ -195,7 +195,7 @@ jobs:
       # Terraform crea repos/prod si faltan
       - name: Terraform init (Prod)
         working-directory: ./infra
-        run: terraform init -input=false -force-copy
+        run: terraform init -reconfigure -input=false
 
       - name: Terraform apply (Prod)
         working-directory: ./infra
