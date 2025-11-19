@@ -26,6 +26,12 @@ variable "private_subnets_ids" {
   description = "Subnets privadas donde corren las tareas ECS"
 }
 
+variable "public_subnets_ids" {
+  type        = list(string)
+  description = "IDs de las subnets públicas donde correrán las tareas ECS"
+}
+
+
 variable "ecs_sg_id" {
   type        = string
   description = "Security group para las tareas ECS"
