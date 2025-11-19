@@ -10,14 +10,11 @@ resource "aws_ecs_cluster" "this" {
   }
 }
 
-####################################
-# IAM INSTANCE PROFILE (OBLIGATORIO)
-# El Lab ya tiene el rol LabRole, pero NO el InstanceProfile.
-####################################
-resource "aws_iam_instance_profile" "lab_profile" {
+iam_instance_profile {
   name = "LabInstanceProfile"
   role = "LabRole"
 }
+
 
 ####################################
 # AMI ECS OPTIMIZADA
