@@ -3,6 +3,12 @@ variable "environment" {
   description = "Environment name (dev, test, prod)"
 }
 
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
 variable "cluster_name" {
   type        = string
   description = "Nombre del ECS cluster"
