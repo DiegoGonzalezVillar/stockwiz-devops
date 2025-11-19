@@ -1,34 +1,51 @@
 
-# Rol del laboratorio
+##############################################
+# IAM ROLE: LabRole 
+##############################################
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
 }
 
-# CloudWatch Log Group
-#resource "aws_cloudwatch_log_group" "ecs" {
-#  name              = "/ecs/${var.ecs_service_name}"
-#  retention_in_days = 7
+##############################################
+# LOG GROUPS (uno por servicio)
+##############################################
 
-#  tags = {
-#    Name = "ecs-logs"
-#  }
-#}
+resource "aws_cloudwatch_log_group" "gateway" {
+  name              = "/ecs/${var.environment}-api-gateway"
+  retention_in_days = 7
+}
 
-# Task Definition - api-gateway
+resource "aws_cloudwatch_log_group" "product" {
+  name              = "/ecs/${var.environment}-product-service"
+  retention_in_days = 7
+}
 
+resource "aws_cloudwatch_log_group" "inventory" {
+  name              = "/ecs/${var.environment}-inventory-service"
+  retention_in_days = 7
+}
+
+##############################################
+# TASK DEFINITIONS
+##############################################
+
+### API GATEWAY ###
 resource "aws_ecs_task_definition" "gateway" {
   family                   = "${var.environment}-api-gateway"
   network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
-  cpu                      = "128"
-  memory                   = "256"
-  execution_role_arn       = data.aws_iam_role.lab_role.arn
+  cpu                      = "256"
+  memory                   = "512"
+
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
     {
       name      = "api-gateway"
       image     = var.gateway_image
       essential = true
+
       portMappings = [
         {
           containerPort = 8000
@@ -36,24 +53,98 @@ resource "aws_ecs_task_definition" "gateway" {
           protocol      = "tcp"
         }
       ]
-       #logConfiguration = {
-       # logDriver = "awslogs"
-       # options = {
-       #   "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
-       #   "awslogs-region"        = var.aws_region
-       #   "awslogs-stream-prefix" = "ecs"
-       # }
-      #}
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-region"        = var.aws_region
+          "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
-
-  tags = {
-    Environment = var.environment
-  }
 }
 
-# Service - api-gateway (con ALB)
+### PRODUCT SERVICE ###
+resource "aws_ecs_task_definition" "product" {
+  family                   = "${var.environment}-product-service"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["EC2"]
+  cpu                      = "256"
+  memory                   = "512"
 
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "product-service"
+      image     = var.product_image
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8001
+          hostPort      = 8001
+          protocol      = "tcp"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-region"        = var.aws_region
+          "awslogs-group"         = aws_cloudwatch_log_group.product.name
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    }
+  ])
+}
+
+### INVENTORY ###
+resource "aws_ecs_task_definition" "inventory" {
+  family                   = "${var.environment}-inventory-service"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["EC2"]
+  cpu                      = "256"
+  memory                   = "512"
+
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "inventory-service"
+      image     = var.inventory_image
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 8002
+          hostPort      = 8002
+          protocol      = "tcp"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-region"        = var.aws_region
+          "awslogs-group"         = aws_cloudwatch_log_group.inventory.name
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    }
+  ])
+}
+
+##############################################
+# SERVICES
+##############################################
+
+### API GATEWAY (expuesto por ALB)
 resource "aws_ecs_service" "gateway" {
   name            = "${var.environment}-api-gateway-svc"
   cluster         = var.cluster_name
@@ -62,9 +153,8 @@ resource "aws_ecs_service" "gateway" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets          = var.private_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = false
+    subnets         = var.private_subnets_ids
+    security_groups = [var.ecs_sg_id]
   }
 
   load_balancer {
@@ -78,46 +168,9 @@ resource "aws_ecs_service" "gateway" {
   lifecycle {
     ignore_changes = [task_definition]
   }
-
-  tags = {
-    Environment = var.environment
-  }
 }
 
-# Task Definition - product-service
-
-resource "aws_ecs_task_definition" "product" {
-  family                   = "${var.environment}-product-service"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["EC2"]
-  cpu                      = "128"
-  memory                   = "256"
-  execution_role_arn       = data.aws_iam_role.lab_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name      = "product-service"
-      image     = var.product_image
-      essential = true
-      portMappings = [
-        {
-          containerPort = 8001
-          hostPort      = 8001
-          protocol      = "tcp"
-        }
-      ]
-    }
-  ])
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-
-
-# Service - product-service (sin ALB, interno)
-
+### PRODUCT ###
 resource "aws_ecs_service" "product" {
   name            = "${var.environment}-product-service-svc"
   cluster         = var.cluster_name
@@ -126,51 +179,16 @@ resource "aws_ecs_service" "product" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets          = var.private_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = false
+    subnets         = var.private_subnets_ids
+    security_groups = [var.ecs_sg_id]
   }
 
   lifecycle {
     ignore_changes = [task_definition]
   }
-
-  tags = {
-    Environment = var.environment
-  }
 }
 
-# Task Definition - inventory-service
-
-resource "aws_ecs_task_definition" "inventory" {
-  family                   = "${var.environment}-inventory-service"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["EC2"]
-  cpu                      = "128"
-  memory                   = "256"
-
-  container_definitions = jsonencode([
-    {
-      name      = "inventory-service"
-      image     = var.inventory_image
-      essential = true
-      portMappings = [
-        {
-          containerPort = 8002
-          hostPort      = 8002
-          protocol      = "tcp"
-        }
-      ]
-    }
-  ])
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-# Service - inventory-service (interno)
-
+### INVENTORY ###
 resource "aws_ecs_service" "inventory" {
   name            = "${var.environment}-inventory-service-svc"
   cluster         = var.cluster_name
@@ -179,16 +197,11 @@ resource "aws_ecs_service" "inventory" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets          = var.private_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = false
+    subnets         = var.private_subnets_ids
+    security_groups = [var.ecs_sg_id]
   }
 
   lifecycle {
     ignore_changes = [task_definition]
-  }
-
-  tags = {
-    Environment = var.environment
   }
 }
