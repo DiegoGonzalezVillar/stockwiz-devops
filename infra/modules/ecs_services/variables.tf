@@ -9,11 +9,11 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "ecs_service_name" {
-  description = "Name of the ECS service"
-  type        = string
-  default     = "my-service"
-}
+#variable "ecs_service_name" {
+#  description = "Name of the ECS service"
+#  type        = string
+#  default     = "my-service"
+#}
 
 
 variable "cluster_name" {
