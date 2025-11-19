@@ -1,6 +1,7 @@
 
-# ECS Cluster (EC2)
-
+####################################
+# ECS CLUSTER
+####################################
 resource "aws_ecs_cluster" "this" {
   name = var.cluster_name
 
@@ -10,8 +11,9 @@ resource "aws_ecs_cluster" "this" {
   }
 }
 
-# AMI ECS-Optimized (Amazon Linux 2)
-
+####################################
+# AMI ECS OPTIMIZADA
+####################################
 data "aws_ssm_parameter" "ecs_ami" {
   name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended"
 }
@@ -20,14 +22,31 @@ locals {
   ecs_ami_id = jsondecode(data.aws_ssm_parameter.ecs_ami.value).image_id
 }
 
-
+####################################
+# LAUNCH TEMPLATE
+####################################
 resource "aws_launch_template" "ecs_lt" {
   name_prefix   = "${var.environment}-ecs-lt-"
   image_id      = local.ecs_ami_id
   instance_type = var.instance_type
 
-  # el SG de ECS que sale del módulo VPC
+  # ⚠️ El LAB USA ESTE INSTANCE PROFILE (NO MODIFICAR)
+  iam_instance_profile {
+    name = "LabInstanceProfile"
+  }
+
+  # Security group que viene del módulo VPC
   vpc_security_group_ids = [var.ecs_sg_id]
+
+  # 🔥 USER DATA CORRECTO PARA ECS EC2 (OBLIGATORIO)
+  user_data = base64encode(<<-EOF
+    #!/bin/bash
+    echo "ECS_CLUSTER=${var.cluster_name}" > /etc/ecs/ecs.config
+    echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
+    
+    systemctl enable --now ecs
+  EOF
+  )
 
   tag_specifications {
     resource_type = "instance"
@@ -39,8 +58,9 @@ resource "aws_launch_template" "ecs_lt" {
   }
 }
 
-# Auto Scaling Group
-
+####################################
+# AUTO SCALING GROUP
+####################################
 resource "aws_autoscaling_group" "ecs_asg" {
   name                = "${var.environment}-ecs-asg"
   max_size            = var.max_size
