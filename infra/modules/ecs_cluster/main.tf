@@ -1,6 +1,6 @@
-####################################
+##############################################
 # ECS CLUSTER
-####################################
+##############################################
 resource "aws_ecs_cluster" "this" {
   name = var.cluster_name
 
@@ -10,15 +10,9 @@ resource "aws_ecs_cluster" "this" {
   }
 }
 
-iam_instance_profile {
-  name = "LabInstanceProfile"
-  role = "LabRole"
-}
-
-
-####################################
-# AMI ECS OPTIMIZADA
-####################################
+##############################################
+# AMI ECS OPTIMIZADA - AMAZON LINUX 2
+##############################################
 data "aws_ssm_parameter" "ecs_ami" {
   name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended"
 }
@@ -27,36 +21,33 @@ locals {
   ecs_ami_id = jsondecode(data.aws_ssm_parameter.ecs_ami.value).image_id
 }
 
-####################################
-# LAUNCH TEMPLATE
-####################################
+##############################################
+# LAUNCH TEMPLATE (EC2 PARA ECS)
+##############################################
 resource "aws_launch_template" "ecs_lt" {
   name_prefix   = "${var.environment}-ecs-lt-"
   image_id      = local.ecs_ami_id
   instance_type = var.instance_type
 
-  ##########################################
-  # AHORA sí apuntamos al Instance Profile
-  ##########################################
+  # ⚠ AWS Academy: NO CAMBIAR ESTO
   iam_instance_profile {
-    name = aws_iam_instance_profile.lab_profile.name
+    name = "LabInstanceProfile"
   }
 
   vpc_security_group_ids = [var.ecs_sg_id]
 
   user_data = base64encode(<<-EOF
-#!/bin/bash
-echo "ECS_CLUSTER=${var.cluster_name}" >> /etc/ecs/ecs.config
-echo "ECS_ENABLE_TASK_IAM_ROLE=true" >> /etc/ecs/ecs.config
-echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true" >> /etc/ecs/ecs.config
-echo "ECS_AVAILABLE_LOGGING_DRIVERS=[\"json-file\",\"awslogs\"]" >> /etc/ecs/ecs.config
-echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
-EOF
+    #!/bin/bash
+    echo "ECS_CLUSTER=${var.cluster_name}" >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_TASK_IAM_ROLE=true" >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true" >> /etc/ecs/ecs.config
+    echo "ECS_AVAILABLE_LOGGING_DRIVERS=[\"json-file\",\"awslogs\"]" >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
+  EOF
   )
 
   tag_specifications {
     resource_type = "instance"
-
     tags = {
       Name        = "${var.environment}-ecs-instance"
       Environment = var.environment
@@ -64,9 +55,9 @@ EOF
   }
 }
 
-####################################
+##############################################
 # AUTO SCALING GROUP
-####################################
+##############################################
 resource "aws_autoscaling_group" "ecs_asg" {
   name                = "${var.environment}-ecs-asg"
   max_size            = var.max_size
@@ -80,19 +71,6 @@ resource "aws_autoscaling_group" "ecs_asg" {
   launch_template {
     id      = aws_launch_template.ecs_lt.id
     version = "$Latest"
-  }
-
-  ##########################################################
-  # INSTANCE REFRESH — reemplaza la instancia EC2 automáticamente
-  ##########################################################
-  instance_refresh {
-    strategy = "Rolling"
-    triggers = ["launch_template"]
-
-    preferences {
-      min_healthy_percentage = 0
-      instance_warmup        = 30
-    }
   }
 
   tag {
