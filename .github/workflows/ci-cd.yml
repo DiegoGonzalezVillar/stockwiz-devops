@@ -97,17 +97,17 @@ jobs:
       - name: Deploy ECS (Dev)
         run: |
           aws ecs update-service \
-            --cluster ecs-cluster-dev \
+            --cluster ecs-fargate-cluster-dev \
             --service dev-api-gateway-svc \
             --force-new-deployment
 
           aws ecs update-service \
-            --cluster ecs-cluster-dev \
+            --cluster ecs-fargate-cluster-dev \
             --service dev-product-service-svc \
             --force-new-deployment
 
           aws ecs update-service \
-            --cluster ecs-cluster-dev \
+            --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
 
