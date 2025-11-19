@@ -38,15 +38,16 @@ resource "aws_launch_template" "ecs_lt" {
   # Security group que viene del módulo VPC
   vpc_security_group_ids = [var.ecs_sg_id]
 
-  # 🔥 USER DATA CORRECTO PARA ECS EC2 (OBLIGATORIO)
-  user_data = base64encode(<<-EOF
-    #!/bin/bash
-    echo "ECS_CLUSTER=${var.cluster_name}" > /etc/ecs/ecs.config
-    echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
-    
-    systemctl enable --now ecs
-  EOF
-  )
+ user_data = base64encode(<<-EOF
+#!/bin/bash
+echo "ECS_CLUSTER=${var.cluster_name}" >> /etc/ecs/ecs.config
+echo "ECS_ENABLE_TASK_IAM_ROLE=true" >> /etc/ecs/ecs.config
+echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true" >> /etc/ecs/ecs.config
+echo "ECS_AVAILABLE_LOGGING_DRIVERS=[\"json-file\",\"awslogs\"]" >> /etc/ecs/ecs.config
+echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
+EOF
+)
+
 
   tag_specifications {
     resource_type = "instance"
