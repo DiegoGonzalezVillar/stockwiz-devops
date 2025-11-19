@@ -153,8 +153,9 @@ resource "aws_ecs_service" "gateway" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets         = var.private_subnets_ids
+    subnets         = var.public_subnets_ids       # 🔥 CAMBIO
     security_groups = [var.ecs_sg_id]
+    assign_public_ip = true                        # 🔥 CAMBIO
   }
 
   load_balancer {
@@ -170,7 +171,7 @@ resource "aws_ecs_service" "gateway" {
   }
 }
 
-### PRODUCT ###
+
 resource "aws_ecs_service" "product" {
   name            = "${var.environment}-product-service-svc"
   cluster         = var.cluster_name
@@ -179,8 +180,9 @@ resource "aws_ecs_service" "product" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets         = var.private_subnets_ids
+    subnets         = var.public_subnets_ids        # 🔥 CAMBIO
     security_groups = [var.ecs_sg_id]
+    assign_public_ip = true                         # 🔥 CAMBIO
   }
 
   lifecycle {
@@ -188,7 +190,7 @@ resource "aws_ecs_service" "product" {
   }
 }
 
-### INVENTORY ###
+
 resource "aws_ecs_service" "inventory" {
   name            = "${var.environment}-inventory-service-svc"
   cluster         = var.cluster_name
@@ -197,11 +199,13 @@ resource "aws_ecs_service" "inventory" {
   launch_type     = "EC2"
 
   network_configuration {
-    subnets         = var.private_subnets_ids
+    subnets         = var.public_subnets_ids        # 🔥 CAMBIO
     security_groups = [var.ecs_sg_id]
+    assign_public_ip = true                         # 🔥 CAMBIO
   }
 
   lifecycle {
     ignore_changes = [task_definition]
   }
 }
+
