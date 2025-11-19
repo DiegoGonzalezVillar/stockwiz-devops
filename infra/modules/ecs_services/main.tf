@@ -1,4 +1,9 @@
 
+# Rol del laboratorio
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
 # Task Definition - api-gateway
 
 resource "aws_ecs_task_definition" "gateway" {
@@ -7,6 +12,7 @@ resource "aws_ecs_task_definition" "gateway" {
   requires_compatibilities = ["EC2"]
   cpu                      = "256"
   memory                   = "512"
+  execution_role_arn       = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
     {
@@ -20,6 +26,14 @@ resource "aws_ecs_task_definition" "gateway" {
           protocol      = "tcp"
         }
       ]
+       logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
 
@@ -68,6 +82,7 @@ resource "aws_ecs_task_definition" "product" {
   requires_compatibilities = ["EC2"]
   cpu                      = "256"
   memory                   = "512"
+  execution_role_arn       = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
     {
@@ -88,6 +103,8 @@ resource "aws_ecs_task_definition" "product" {
     Environment = var.environment
   }
 }
+
+
 
 # Service - product-service (sin ALB, interno)
 
