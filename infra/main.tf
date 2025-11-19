@@ -23,6 +23,16 @@ module "alb" {
   gateway_port       = 8000
 }
 
+resource "aws_ecs_cluster" "fargate" {
+  name = "ecs-fargate-cluster"
+
+  tags = {
+    Name        = "ecs-fargate-cluster"
+    Environment = var.env
+  }
+}
+
+
 module "ecs_services" {
   source              = "./modules/ecs_services"
   environment         = var.env
