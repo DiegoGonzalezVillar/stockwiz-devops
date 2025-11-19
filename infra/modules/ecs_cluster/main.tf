@@ -26,18 +26,8 @@ resource "aws_launch_template" "ecs_lt" {
   image_id      = local.ecs_ami_id
   instance_type = var.instance_type
 
-
-  iam_instance_profile {
-    name = "LabInstanceProfile"
-  }
   # el SG de ECS que sale del módulo VPC
   vpc_security_group_ids = [var.ecs_sg_id]
-
-  user_data = base64encode(<<-EOF
-    #!/bin/bash
-    echo "ECS_CLUSTER=${var.cluster_name}" >> /etc/ecs/ecs.config
-  EOF
-  )
 
   tag_specifications {
     resource_type = "instance"
