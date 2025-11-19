@@ -20,8 +20,8 @@ resource "aws_ecs_task_definition" "gateway" {
   family                   = "${var.environment}-api-gateway"
   network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "128"
+  memory                   = "256"
   execution_role_arn       = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
@@ -90,8 +90,8 @@ resource "aws_ecs_task_definition" "product" {
   family                   = "${var.environment}-product-service"
   network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "128"
+  memory                   = "256"
   execution_role_arn       = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
@@ -146,8 +146,8 @@ resource "aws_ecs_task_definition" "inventory" {
   family                   = "${var.environment}-inventory-service"
   network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "128"
+  memory                   = "256"
 
   container_definitions = jsonencode([
     {
