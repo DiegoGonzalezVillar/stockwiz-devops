@@ -29,6 +29,7 @@ module "ecs_cluster" {
   cluster_name        = "ecs-cluster-dev"
   vpc_id              = module.vpc.vpc_id
   private_subnets_ids = module.vpc.private_subnets_ids
+  public_subnets_ids = module.vpc.public_subnets_ids
   ecs_sg_id           = module.vpc.ecs_sg_id
   instance_type       = "t3.micro"
   desired_capacity    = 1
