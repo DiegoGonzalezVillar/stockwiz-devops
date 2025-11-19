@@ -1,4 +1,3 @@
-
 ####################################
 # ECS CLUSTER
 ####################################
@@ -9,6 +8,15 @@ resource "aws_ecs_cluster" "this" {
     Name        = var.cluster_name
     Environment = var.environment
   }
+}
+
+####################################
+# IAM INSTANCE PROFILE (OBLIGATORIO)
+# El Lab ya tiene el rol LabRole, pero NO el InstanceProfile.
+####################################
+resource "aws_iam_instance_profile" "lab_profile" {
+  name = "LabInstanceProfile"
+  role = "LabRole"
 }
 
 ####################################
@@ -30,15 +38,16 @@ resource "aws_launch_template" "ecs_lt" {
   image_id      = local.ecs_ami_id
   instance_type = var.instance_type
 
-  # ⚠️ El LAB USA ESTE INSTANCE PROFILE (NO MODIFICAR)
+  ##########################################
+  # AHORA sí apuntamos al Instance Profile
+  ##########################################
   iam_instance_profile {
-    name = "LabInstanceProfile"
+    name = aws_iam_instance_profile.lab_profile.name
   }
 
-  # Security group que viene del módulo VPC
   vpc_security_group_ids = [var.ecs_sg_id]
 
- user_data = base64encode(<<-EOF
+  user_data = base64encode(<<-EOF
 #!/bin/bash
 echo "ECS_CLUSTER=${var.cluster_name}" >> /etc/ecs/ecs.config
 echo "ECS_ENABLE_TASK_IAM_ROLE=true" >> /etc/ecs/ecs.config
@@ -46,8 +55,7 @@ echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true" >> /etc/ecs/ecs.config
 echo "ECS_AVAILABLE_LOGGING_DRIVERS=[\"json-file\",\"awslogs\"]" >> /etc/ecs/ecs.config
 echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
 EOF
-)
-
+  )
 
   tag_specifications {
     resource_type = "instance"
@@ -75,6 +83,19 @@ resource "aws_autoscaling_group" "ecs_asg" {
   launch_template {
     id      = aws_launch_template.ecs_lt.id
     version = "$Latest"
+  }
+
+  ##########################################################
+  # INSTANCE REFRESH — reemplaza la instancia EC2 automáticamente
+  ##########################################################
+  instance_refresh {
+    strategy = "Rolling"
+    triggers = ["launch_template"]
+
+    preferences {
+      min_healthy_percentage = 0
+      instance_warmup        = 30
+    }
   }
 
   tag {
