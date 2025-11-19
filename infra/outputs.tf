@@ -24,9 +24,10 @@ output "alb_arn" {
 }
 
 output "ecs_cluster_name" {
-  description = "Nombre del ECS Cluster donde corren los servicios"
-  value       = module.ecs_cluster.cluster_name
+  description = "Nombre del cluster ECS"
+  value       = aws_ecs_cluster.fargate.name
 }
+
 
 output "alb_security_group_id" {
   description = "Security Group asociado al ALB"
