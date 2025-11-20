@@ -1,13 +1,11 @@
-######################################
+
 # IAM ROLE (LabRole del laboratorio)
-######################################
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
 }
 
-######################################
 # Log Groups
-######################################
+
 resource "aws_cloudwatch_log_group" "gateway" {
   name              = "/ecs/${var.environment}-api-gateway"
   retention_in_days = 7
@@ -23,9 +21,7 @@ resource "aws_cloudwatch_log_group" "inventory" {
   retention_in_days = 7
 }
 
-######################################
 # TASK DEFINITIONS (FARGATE)
-######################################
 
 # API Gateway
 resource "aws_ecs_task_definition" "gateway" {
@@ -133,9 +129,7 @@ resource "aws_ecs_task_definition" "inventory" {
   ])
 }
 
-######################################
 # ECS SERVICES — FARGATE
-######################################
 
 resource "aws_ecs_service" "gateway" {
   name            = "${var.environment}-api-gateway-svc"
@@ -145,8 +139,8 @@ resource "aws_ecs_service" "gateway" {
   desired_count   = 1
 
   network_configuration {
-    subnets         = var.public_subnets_ids
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets_ids
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 
@@ -165,8 +159,8 @@ resource "aws_ecs_service" "product" {
   desired_count   = 1
 
   network_configuration {
-    subnets         = var.public_subnets_ids
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets_ids
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 }
@@ -179,8 +173,8 @@ resource "aws_ecs_service" "inventory" {
   desired_count   = 1
 
   network_configuration {
-    subnets         = var.public_subnets_ids
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets_ids
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 }
