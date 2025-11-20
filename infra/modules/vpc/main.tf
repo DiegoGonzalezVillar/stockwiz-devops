@@ -161,16 +161,25 @@ resource "aws_security_group" "alb_sg" {
 # SG para tareas ECS (solo recibe del ALB)
 resource "aws_security_group" "ecs_sg" {
   name        = "${var.environment}-ecs-sg"
-  description = "ECS services security group"
+  description = "ECS instances & tasks security group"
   vpc_id      = aws_vpc.app_vpc.id
 
-  # Gateway / product / inventory: puertos 8000, 8001, 8002
+  # Permitir tráfico desde el ALB -> puerto 8000 (API Gateway)
   ingress {
-    description     = "From ALB to app ports"
+    description     = "ALB to API Gateway"
     from_port       = 8000
-    to_port         = 8002
+    to_port         = 8000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  # Permitir tráfico interno entre tareas ECS (service-to-service)
+  ingress {
+    description = "Internal ECS communication"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    self        = true
   }
 
   egress {
@@ -185,3 +194,4 @@ resource "aws_security_group" "ecs_sg" {
     Environment = var.environment
   }
 }
+

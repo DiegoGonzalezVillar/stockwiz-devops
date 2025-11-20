@@ -19,7 +19,6 @@ on:
 env:
   AWS_REGION: us-east-1
   TF_BUCKET: stockwiz-tfstate
-  TF_DDB: stockwiz-tf-locks
 
 jobs:
   destroy:
@@ -55,12 +54,16 @@ jobs:
           -backend-config="bucket=${TF_BUCKET}" \
           -backend-config="key=${{ github.event.inputs.env }}/terraform.tfstate" \
           -backend-config="region=${AWS_REGION}" \
-          -backend-config="dynamodb_table=${TF_DDB}" \
           -backend-config="encrypt=true"
 
     - name: Terraform Destroy
       working-directory: ./infra
       run: terraform destroy -auto-approve -var-file=env/${{ github.event.inputs.env }}.tfvars
+
+    - name: Destroy complete
+      run: echo "Environment destroyed successfully!"
+
+
 
     - name: Destroy complete
       run: echo "Environment destroyed successfully!"
