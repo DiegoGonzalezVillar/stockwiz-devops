@@ -24,13 +24,14 @@ module "alb" {
 }
 
 resource "aws_ecs_cluster" "fargate" {
-  name = "ecs-fargate-cluster"
+  name = "ecs-fargate-cluster-${var.env}"
 
   tags = {
-    Name        = "ecs-fargate-cluster"
+    Name        = "ecs-fargate-cluster-${var.env}"
     Environment = var.env
   }
 }
+
 
 
 module "ecs_services" {
