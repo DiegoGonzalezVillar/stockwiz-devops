@@ -45,18 +45,10 @@ resource "aws_ecs_task_definition" "gateway" {
     }]
 
    environment = [
-  {
-    name  = "PRODUCT_SERVICE_URL"
-    value = "http://localhost:8001"
-  },
-  {
-    name  = "INVENTORY_SERVICE_URL"
-    value = "http://localhost:8002"
-  },
-{
-    name  = "REDIS_URL"
-    value = "localhost:6379"
-  }]
+  { name = "PRODUCT_SERVICE_URL",   value = "http://dev-product-service-svc:8001" },
+  { name = "INVENTORY_SERVICE_URL", value = "http://dev-inventory-service-svc:8002" }
+]
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -90,10 +82,6 @@ resource "aws_ecs_task_definition" "product" {
       protocol      = "tcp"
     }]
 
-    environment = [
-      { name = "DB_PATH", value = "/app/micro.db" }
-    ]
-
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -126,10 +114,6 @@ resource "aws_ecs_task_definition" "inventory" {
       containerPort = 8002
       protocol      = "tcp"
     }]
-
-    environment = [
-      { name = "DB_PATH", value = "/app/micro.db" }
-    ]
 
     logConfiguration = {
       logDriver = "awslogs"
