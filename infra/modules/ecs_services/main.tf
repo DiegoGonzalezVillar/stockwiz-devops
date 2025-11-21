@@ -44,10 +44,17 @@ resource "aws_ecs_task_definition" "gateway" {
       protocol      = "tcp"
     }]
 
-    environment = [
-      { name = "PRODUCT_SERVICE_URL",   value = "http://product-service:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service:8002" }
-    ]
+   environment = [
+  {
+    name  = "PRODUCT_SERVICE_URL"
+    value = "http://${var.environment}-product-service-svc:8001"
+  },
+  {
+    name  = "INVENTORY_SERVICE_URL"
+    value = "http://${var.environment}-inventory-service-svc:8002"
+  }
+]
+
 
     logConfiguration = {
       logDriver = "awslogs"
