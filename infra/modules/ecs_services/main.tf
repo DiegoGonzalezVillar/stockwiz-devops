@@ -47,11 +47,11 @@ resource "aws_ecs_task_definition" "gateway" {
    environment = [
   {
     name  = "PRODUCT_SERVICE_URL"
-    value = "http://${var.environment}-product-service-svc:8001"
+    value = "http://localhost:8001"
   },
   {
     name  = "INVENTORY_SERVICE_URL"
-    value = "http://${var.environment}-inventory-service-svc:8002"
+    value = "http://localhost:8002"
   }
 ]
 
