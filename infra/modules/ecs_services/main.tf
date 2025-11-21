@@ -54,16 +54,9 @@ resource "aws_ecs_task_definition" "gateway" {
     value = "http://localhost:8002"
   },
 {
-    name  = "REDIS_HOST"
-    value = "localhost"
-  }
-{
-    name  = "REDIS_PORT"
-    value = "6379"
-  }
-]
-
-
+    name  = "REDIS_URL"
+    value = "localhost:6379"
+  }]
     logConfiguration = {
       logDriver = "awslogs"
       options = {
