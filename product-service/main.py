@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+'''from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import asyncpg
@@ -212,4 +212,134 @@ async def delete_product(product_id: int, db: asyncpg.Connection = Depends(get_d
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001)'''
+
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, Field
+from typing import Optional, List
+import aiosqlite
+import json
+import os
+from contextlib import asynccontextmanager
+
+# DB path (SQLite)
+DB_PATH = os.getenv("DB_PATH", "/app/micro.db")
+
+# Pydantic models
+class ProductCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    price: float = Field(..., gt=0)
+    category: Optional[str] = None
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+
+class Product(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    price: float
+    category: Optional[str]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("✅ Product Service started with SQLite")
+    yield
+    print("🔌 Product Service shut down")
+
+app = FastAPI(title="Product Service", version="1.0.0", lifespan=lifespan)
+
+# Dependency
+async def get_db():
+    conn = await aiosqlite.connect(DB_PATH)
+    conn.row_factory = aiosqlite.Row
+    try:
+        yield conn
+    finally:
+        await conn.close()
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "product-service"}
+
+@app.get("/products", response_model=List[Product])
+async def get_products(category: Optional[str] = None, db=Depends(get_db)):
+    if category:
+        query = "SELECT * FROM products WHERE category = ? ORDER BY id"
+        cursor = await db.execute(query, (category,))
+    else:
+        query = "SELECT * FROM products ORDER BY id"
+        cursor = await db.execute(query)
+
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+@app.get("/products/{product_id}", response_model=Product)
+async def get_product(product_id: int, db=Depends(get_db)):
+    cursor = await db.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+    row = await cursor.fetchone()
+
+    if not row:
+        raise HTTPException(404, "Product not found")
+
+    return dict(row)
+
+@app.post("/products", response_model=Product, status_code=201)
+async def create_product(product: ProductCreate, db=Depends(get_db)):
+    query = """
+        INSERT INTO products (name, description, price, category)
+        VALUES (?, ?, ?, ?) RETURNING *
+    """
+    cursor = await db.execute(query, (product.name, product.description, product.price, product.category))
+    row = await cursor.fetchone()
+    await db.commit()
+    return dict(row)
+
+@app.put("/products/{product_id}", response_model=Product)
+async def update_product(product_id: int, product: ProductUpdate, db=Depends(get_db)):
+    # Check exists
+    cursor = await db.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+    existing = await cursor.fetchone()
+    if not existing:
+        raise HTTPException(404, "Product not found")
+
+    updates = []
+    values = []
+
+    if product.name is not None:
+        updates.append("name = ?")
+        values.append(product.name)
+
+    if product.description is not None:
+        updates.append("description = ?")
+        values.append(product.description)
+
+    if product.price is not None:
+        updates.append("price = ?")
+        values.append(product.price)
+
+    if product.category is not None:
+        updates.append("category = ?")
+        values.append(product.category)
+
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    query = f"UPDATE products SET {', '.join(updates)} WHERE id = ? RETURNING *"
+    values.append(product_id)
+
+    cursor = await db.execute(query, values)
+    row = await cursor.fetchone()
+    await db.commit()
+
+    return dict(row)
+
+@app.delete("/products/{product_id}", status_code=204)
+async def delete_product(product_id: int, db=Depends(get_db)):
+    result = await db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+    await db.commit()
+    return None
