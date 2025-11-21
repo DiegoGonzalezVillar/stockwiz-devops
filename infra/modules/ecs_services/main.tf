@@ -34,29 +34,45 @@ resource "aws_ecs_task_definition" "gateway" {
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
-  container_definitions = jsonencode([
-    {
-      name      = "api-gateway"
-      image     = var.gateway_image
-      essential = true
+ container_definitions = jsonencode([
+  {
+    name      = "api-gateway"
+    image     = var.gateway_image
+    essential = true
 
-      portMappings = [
-        {
-          containerPort = 8000
-          protocol      = "tcp"
-        }
-      ]
+    portMappings = [
+      {
+        containerPort = 8000
+        protocol      = "tcp"
+      }
+    ]
 
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-region"        = var.aws_region
-          "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
-          "awslogs-stream-prefix" = "ecs"
-        }
+    environment = [
+      {
+        name  = "PRODUCT_SERVICE_URL"
+        value = "http://${var.environment}-product-service-svc:8001"
+      },
+      {
+        name  = "INVENTORY_SERVICE_URL"
+        value = "http://${var.environment}-inventory-service-svc:8002"
+      },
+      {
+        name  = "REDIS_URL"
+        value = ""   # Redis deshabilitado en ECS
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-region"        = var.aws_region
+        "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }
+])
+
 }
 
 # PRODUCT
