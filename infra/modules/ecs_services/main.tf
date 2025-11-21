@@ -34,32 +34,19 @@ resource "aws_ecs_task_definition" "gateway" {
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
- container_definitions = jsonencode([
-  {
-    name      = "api-gateway"
-    image     = var.gateway_image
+  container_definitions = jsonencode([{
+    name  = "api-gateway"
+    image = var.gateway_image
     essential = true
 
-    portMappings = [
-      {
-        containerPort = 8000
-        protocol      = "tcp"
-      }
-    ]
+    portMappings = [{
+      containerPort = 8000
+      protocol      = "tcp"
+    }]
 
     environment = [
-      {
-        name  = "PRODUCT_SERVICE_URL"
-        value = "http://${var.environment}-product-service-svc:8001"
-      },
-      {
-        name  = "INVENTORY_SERVICE_URL"
-        value = "http://${var.environment}-inventory-service-svc:8002"
-      },
-      {
-        name  = "REDIS_URL"
-        value = ""   # Redis deshabilitado en ECS
-      }
+      { name = "PRODUCT_SERVICE_URL",   value = "http://product-service:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service:8002" }
     ]
 
     logConfiguration = {
@@ -70,10 +57,9 @@ resource "aws_ecs_task_definition" "gateway" {
         "awslogs-stream-prefix" = "ecs"
       }
     }
-  }
-])
-
+  }])
 }
+
 
 # PRODUCT
 resource "aws_ecs_task_definition" "product" {
@@ -86,29 +72,31 @@ resource "aws_ecs_task_definition" "product" {
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
-  container_definitions = jsonencode([
-    {
-      name  = "product-service"
-      image = var.product_image
+  container_definitions = jsonencode([{
+    name  = "product-service"
+    image = var.product_image
+    essential = true
 
-      portMappings = [
-        {
-          containerPort = 8001
-          protocol      = "tcp"
-        }
-      ]
+    portMappings = [{
+      containerPort = 8001
+      protocol      = "tcp"
+    }]
 
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-region"        = var.aws_region
-          "awslogs-group"         = aws_cloudwatch_log_group.product.name
-          "awslogs-stream-prefix" = "ecs"
-        }
+    environment = [
+      { name = "DB_PATH", value = "/app/micro.db" }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-region"        = var.aws_region
+        "awslogs-group"         = aws_cloudwatch_log_group.product.name
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }])
 }
+
 
 # INVENTORY
 resource "aws_ecs_task_definition" "inventory" {
@@ -121,29 +109,31 @@ resource "aws_ecs_task_definition" "inventory" {
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
-  container_definitions = jsonencode([
-    {
-      name  = "inventory-service"
-      image = var.inventory_image
+  container_definitions = jsonencode([{
+    name  = "inventory-service"
+    image = var.inventory_image
+    essential = true
 
-      portMappings = [
-        {
-          containerPort = 8002
-          protocol      = "tcp"
-        }
-      ]
+    portMappings = [{
+      containerPort = 8002
+      protocol      = "tcp"
+    }]
 
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-region"        = var.aws_region
-          "awslogs-group"         = aws_cloudwatch_log_group.inventory.name
-          "awslogs-stream-prefix" = "ecs"
-        }
+    environment = [
+      { name = "DB_PATH", value = "/app/micro.db" }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-region"        = var.aws_region
+        "awslogs-group"         = aws_cloudwatch_log_group.inventory.name
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }])
 }
+
 
 # ECS SERVICES — FARGATE
 
