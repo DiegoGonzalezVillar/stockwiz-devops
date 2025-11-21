@@ -50,12 +50,12 @@ func main() {
 	// Configuración de servicios
 	productServiceURL = os.Getenv("PRODUCT_SERVICE_URL")
 	if productServiceURL == "" {
-		productServiceURL = "http://localhost:8001"
+		productServiceURL = "http://dev-product-service:8001"
 	}
 
 	inventoryServiceURL = os.Getenv("INVENTORY_SERVICE_URL")
 	if inventoryServiceURL == "" {
-		inventoryServiceURL = "http://localhost:8002"
+		inventoryServiceURL = "http://dev-inventory-service:8002"
 	}
 
 	// Conectar a Redis
