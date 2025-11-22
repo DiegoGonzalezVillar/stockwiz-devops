@@ -31,6 +31,16 @@ resource "aws_cloudwatch_log_group" "inventory" {
 #   retention_in_days = 3
 # }
 
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "${var.aws_region}a"
+}
+
 resource "aws_service_discovery_private_dns_namespace" "internal" {
   name        = "internal"
   description = "Private namespace"
@@ -236,25 +246,10 @@ resource "aws_ecs_service" "gateway" {
   }
 }
 
-resource "aws_ecs_service" "postgres" {
-  name            = "${var.environment}-postgres-svc"
-  cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.product.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
-
-  network_configuration {
-    subnets          = var.public_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = false
-  }
-}
-
-
 resource "aws_ecs_service" "product" {
   name            = "${var.environment}-product-service-svc"
   cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.postgres
+  task_definition = aws_ecs_task_definition.product.arn
   launch_type     = "FARGATE"
   desired_count   = 1
 
