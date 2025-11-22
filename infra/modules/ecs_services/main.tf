@@ -1,10 +1,13 @@
-
-# IAM ROLE (LabRole del laboratorio)
+########################################
+# IAM ROLE (LabRole)
+########################################
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
 }
 
-# Log Groups
+########################################
+# CLOUDWATCH LOG GROUPS
+########################################
 
 resource "aws_cloudwatch_log_group" "gateway" {
   name              = "/ecs/${var.environment}-api-gateway"
@@ -21,47 +24,136 @@ resource "aws_cloudwatch_log_group" "inventory" {
   retention_in_days = 7
 }
 
-# TASK DEFINITIONS (FARGATE)
+resource "aws_cloudwatch_log_group" "data" {
+  name              = "/ecs/${var.environment}-data-service"
+  retention_in_days = 7
+}
 
-# API Gateway
-resource "aws_ecs_task_definition" "gateway" {
-  family                   = "${var.environment}-api-gateway"
-  cpu                      = "256"
-  memory                   = "512"
+########################################
+# CLOUD MAP (SERVICE DISCOVERY)
+########################################
+
+# Necesitamos el VPC ID derivado de las subnets
+data "aws_subnet" "public_subnets" {
+  for_each = toset(var.public_subnets_ids)
+  id       = each.key
+}
+
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name = "service.local"
+  vpc  = element(values(data.aws_subnet.public_subnets), 0).vpc_id
+}
+
+resource "aws_service_discovery_service" "data" {
+  name = "data-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 5
+      type = "A"
+    }
+  }
+}
+
+resource "aws_service_discovery_service" "product" {
+  name = "product-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 5
+      type = "A"
+    }
+  }
+}
+
+resource "aws_service_discovery_service" "inventory" {
+  name = "inventory-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 5
+      type = "A"
+    }
+  }
+}
+
+########################################
+# TASK DEFINITIONS – DATA SERVICE
+# (POSTGRES + REDIS)
+########################################
+
+resource "aws_ecs_task_definition" "data" {
+  family                   = "${var.environment}-data-service"
+  cpu                      = "512"
+  memory                   = "1024"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
 
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
-  container_definitions = jsonencode([{
-    name  = "api-gateway"
-    image = var.gateway_image
-    essential = true
+  container_definitions = jsonencode([
+    {
+      name      = "postgres"
+      image     = "postgres:15-alpine"
+      essential = true
 
-    portMappings = [{
-      containerPort = 8000
-      protocol      = "tcp"
-    }]
+      environment = [
+        { name = "POSTGRES_DB",       value = "microservices_db" },
+        { name = "POSTGRES_USER",     value = "admin" },
+        { name = "POSTGRES_PASSWORD", value = "admin123" }
+      ]
 
-   environment = [
-  { name = "PRODUCT_SERVICE_URL",   value = "http://dev-product-service-svc:8001" },
-  { name = "INVENTORY_SERVICE_URL", value = "http://dev-inventory-service-svc:8002" }
-]
+      portMappings = [{
+        containerPort = 5432
+        protocol      = "tcp"
+      }]
+    },
+    {
+      name      = "redis"
+      image     = "redis:7-alpine"
+      essential = true
 
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-region"        = var.aws_region
-        "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
-        "awslogs-stream-prefix" = "ecs"
-      }
+      portMappings = [{
+        containerPort = 6379
+        protocol      = "tcp"
+      }]
     }
-  }])
+  ])
 }
 
+########################################
+# ECS SERVICE – DATA SERVICE
+########################################
 
-# PRODUCT
+resource "aws_ecs_service" "data" {
+  name            = "${var.environment}-data-service"
+  cluster         = var.cluster_name
+  task_definition = aws_ecs_task_definition.data.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = var.public_subnets_ids
+    security_groups = [var.ecs_sg_id]
+    assign_public_ip = true
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.data.arn
+  }
+}
+
+########################################
+# TASK DEFINITIONS – PRODUCT SERVICE
+########################################
+
 resource "aws_ecs_task_definition" "product" {
   family                   = "${var.environment}-product-service"
   cpu                      = "256"
@@ -73,14 +165,19 @@ resource "aws_ecs_task_definition" "product" {
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([{
-    name  = "product-service"
-    image = var.product_image
+    name      = "product-service"
+    image     = var.product_image
     essential = true
 
     portMappings = [{
       containerPort = 8001
       protocol      = "tcp"
     }]
+
+    environment = [
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@data-service.service.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis://data-service.service.local:6379" }
+    ]
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -93,8 +190,32 @@ resource "aws_ecs_task_definition" "product" {
   }])
 }
 
+########################################
+# ECS SERVICE – PRODUCT SERVICE
+########################################
 
-# INVENTORY
+resource "aws_ecs_service" "product" {
+  name            = "${var.environment}-product-service"
+  cluster         = var.cluster_name
+  task_definition = aws_ecs_task_definition.product.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = var.public_subnets_ids
+    security_groups = [var.ecs_sg_id]
+    assign_public_ip = true
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.product.arn
+  }
+}
+
+########################################
+# TASK DEFINITIONS – INVENTORY SERVICE
+########################################
+
 resource "aws_ecs_task_definition" "inventory" {
   family                   = "${var.environment}-inventory-service"
   cpu                      = "256"
@@ -106,14 +227,19 @@ resource "aws_ecs_task_definition" "inventory" {
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([{
-    name  = "inventory-service"
-    image = var.inventory_image
+    name      = "inventory-service"
+    image     = var.inventory_image
     essential = true
 
     portMappings = [{
       containerPort = 8002
       protocol      = "tcp"
     }]
+
+    environment = [
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@data-service.service.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis://data-service.service.local:6379" }
+    ]
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -126,19 +252,83 @@ resource "aws_ecs_task_definition" "inventory" {
   }])
 }
 
+########################################
+# ECS SERVICE – INVENTORY SERVICE
+########################################
 
-# ECS SERVICES — FARGATE
-
-resource "aws_ecs_service" "gateway" {
-  name            = "${var.environment}-api-gateway-svc"
+resource "aws_ecs_service" "inventory" {
+  name            = "${var.environment}-inventory-service"
   cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.gateway.arn
-  launch_type     = "FARGATE"
+  task_definition = aws_ecs_task_definition.inventory.arn
   desired_count   = 1
+  launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = var.public_subnets_ids
-    security_groups  = [var.ecs_sg_id]
+    subnets         = var.public_subnets_ids
+    security_groups = [var.ecs_sg_id]
+    assign_public_ip = true
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.inventory.arn
+  }
+}
+
+########################################
+# TASK DEFINITIONS – API GATEWAY
+########################################
+
+resource "aws_ecs_task_definition" "gateway" {
+  family                   = "${var.environment}-api-gateway"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
+  container_definitions = jsonencode([{
+    name      = "api-gateway"
+    image     = var.gateway_image
+    essential = true
+
+    portMappings = [{
+      containerPort = 8000
+      protocol      = "tcp"
+    }]
+
+    environment = [
+      { name = "REDIS_URL", value = "redis://data-service.service.local:6379" },
+      { name = "PRODUCT_SERVICE_URL",   value = "http://product-service.service.local:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service.service.local:8002" }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-region"        = var.aws_region
+        "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+  }])
+}
+
+########################################
+# ECS SERVICE – API GATEWAY (ALB)
+########################################
+
+resource "aws_ecs_service" "gateway" {
+  name            = "${var.environment}-api-gateway"
+  cluster         = var.cluster_name
+  task_definition = aws_ecs_task_definition.gateway.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = var.public_subnets_ids
+    security_groups = [var.ecs_sg_id]
     assign_public_ip = true
   }
 
@@ -148,32 +338,3 @@ resource "aws_ecs_service" "gateway" {
     container_port   = 8000
   }
 }
-
-resource "aws_ecs_service" "product" {
-  name            = "${var.environment}-product-service-svc"
-  cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.product.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
-
-  network_configuration {
-    subnets          = var.public_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = true
-  }
-}
-
-resource "aws_ecs_service" "inventory" {
-  name            = "${var.environment}-inventory-service-svc"
-  cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.inventory.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
-
-  network_configuration {
-    subnets          = var.public_subnets_ids
-    security_groups  = [var.ecs_sg_id]
-    assign_public_ip = true
-  }
-}
-
