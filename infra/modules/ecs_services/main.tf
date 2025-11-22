@@ -31,7 +31,74 @@ resource "aws_cloudwatch_log_group" "inventory" {
 #   retention_in_days = 3
 # }
 
+resource "aws_service_discovery_private_dns_namespace" "internal" {
+  name        = "internal"
+  description = "Private namespace"
+  vpc         = module.vpc.vpc_id
+}
+
 # TASK DEFINITIONS (FARGATE)
+
+resource "aws_ecs_task_definition" "dbcache" {
+  family                   = "dbcache-task"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"
+  memory                   = "1024"
+
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "postgres"
+      image     = "postgres:15-alpine"
+      essential = true
+      environment = [
+        { name = "POSTGRES_USER", value = "admin" },
+        { name = "POSTGRES_PASSWORD", value = "admin123" },
+        { name = "POSTGRES_DB", value = "microservices_db" }
+      ]
+      portMappings = [{ containerPort = 5432 }]
+    },
+    {
+      name         = "redis"
+      image        = "redis:7-alpine"
+      essential    = true
+      portMappings = [{ containerPort = 6379 }]
+    }
+  ])
+}
+
+resource "aws_ecs_service" "dbcache" {
+  name            = "dbcache-service"
+  cluster         = var.cluster_name
+  task_definition = aws_ecs_task_definition.dbcache.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = var.public_subnets_ids
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.dbcache.arn
+  }
+}
+
+resource "aws_service_discovery_service" "dbcache" {
+  name = "postgres-redis"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.internal.id
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+  }
+}
+
 
 # API Gateway
 resource "aws_ecs_task_definition" "gateway" {
@@ -55,11 +122,10 @@ resource "aws_ecs_task_definition" "gateway" {
     }]
 
     environment = [
-      { name = "PRODUCT_SERVICE_URL", value = "http://product-service:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service:8002" },
-      # { name = "REDIS_URL", value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
+      { name = "PRODUCT_SERVICE_URL", value = "http://product.internal:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://inventory.internal:8002" },
+      { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
     ]
-
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -84,9 +150,6 @@ resource "aws_ecs_task_definition" "product" {
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
-    ###########################
-    ## PRODUCT SERVICE
-    ###########################
     {
       name      = "product-service"
       image     = var.product_image
@@ -98,15 +161,9 @@ resource "aws_ecs_task_definition" "product" {
       }]
 
       environment = [
-        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres:5432/microservices_db" },
-        { name = "REDIS_URL", value = "redis://redis:6379" }
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis.internal:5432/microservices_db" },
+        { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
       ]
-
-      # dependsOn = [
-      #   { containerName = "postgres", condition = "START" },
-      #   { containerName = "redis", condition = "START" }
-      # ]
-
       logConfiguration = {
         logDriver = "awslogs",
         options = {
@@ -117,12 +174,7 @@ resource "aws_ecs_task_definition" "product" {
       }
     }
   ])
-
-  volume {
-    name = "tmp-data"
-  }
 }
-
 
 
 # INVENTORY
@@ -146,9 +198,10 @@ resource "aws_ecs_task_definition" "inventory" {
       protocol      = "tcp"
     }]
 
-    # environment = [
-    #   { name = "DB_PATH", value = "/app/micro.db" }
-    # ]
+    environment = [
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis.internal:5432/microservices_db" },
+      { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
+    ]
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -160,7 +213,6 @@ resource "aws_ecs_task_definition" "inventory" {
     }
   }])
 }
-
 
 # ECS SERVICES — FARGATE
 
@@ -174,7 +226,7 @@ resource "aws_ecs_service" "gateway" {
   network_configuration {
     subnets          = var.public_subnets_ids
     security_groups  = [var.ecs_sg_id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   load_balancer {
@@ -184,17 +236,32 @@ resource "aws_ecs_service" "gateway" {
   }
 }
 
-resource "aws_ecs_service" "product" {
-  name            = "${var.environment}-product-service-svc"
+resource "aws_ecs_service" "postgres" {
+  name            = "${var.environment}-postgres-svc"
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.product.arn
   launch_type     = "FARGATE"
   desired_count   = 1
 
   network_configuration {
-    subnets          = var.public_subnets_ids
+    subnets          = var.private_subnets_ids
     security_groups  = [var.ecs_sg_id]
-    assign_public_ip = true
+    assign_public_ip = false
+  }
+}
+
+
+resource "aws_ecs_service" "product" {
+  name            = "${var.environment}-product-service-svc"
+  cluster         = var.cluster_name
+  task_definition = aws_ecs_task_definition.postgres
+  launch_type     = "FARGATE"
+  desired_count   = 1
+
+  network_configuration {
+    subnets          = var.private_subnets_ids
+    security_groups  = [var.ecs_sg_id]
+    assign_public_ip = false
   }
 }
 
@@ -206,8 +273,8 @@ resource "aws_ecs_service" "inventory" {
   desired_count   = 1
 
   network_configuration {
-    subnets          = var.public_subnets_ids
+    subnets          = var.private_subnets_ids
     security_groups  = [var.ecs_sg_id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 }
