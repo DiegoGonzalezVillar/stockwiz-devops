@@ -30,59 +30,6 @@ resource "aws_cloudwatch_log_group" "data" {
 }
 
 ########################################
-# CLOUD MAP (SERVICE DISCOVERY)
-########################################
-
-data "aws_subnet" "public_subnet" {
-  id = var.public_subnets_ids[0]
-}
-
-resource "aws_service_discovery_private_dns_namespace" "main" {
-  name = "service.local"
-  vpc  = data.aws_subnet.public_subnet.vpc_id
-}
-
-
-resource "aws_service_discovery_service" "data" {
-  name = "data-service"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 5
-      type = "A"
-    }
-  }
-}
-
-resource "aws_service_discovery_service" "product" {
-  name = "product-service"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 5
-      type = "A"
-    }
-  }
-}
-
-resource "aws_service_discovery_service" "inventory" {
-  name = "inventory-service"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 5
-      type = "A"
-    }
-  }
-}
-
-########################################
 # TASK DEFINITIONS – DATA SERVICE
 # (POSTGRES + REDIS)
 ########################################
@@ -143,10 +90,6 @@ resource "aws_ecs_service" "data" {
     security_groups = [var.ecs_sg_id]
     assign_public_ip = true
   }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.data.arn
-  }
 }
 
 ########################################
@@ -174,8 +117,8 @@ resource "aws_ecs_task_definition" "product" {
     }]
 
     environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@data-service.service.local:5432/microservices_db" },
-      { name = "REDIS_URL",    value = "redis://data-service.service.local:6379" }
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis:// ${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
     ]
 
     logConfiguration = {
@@ -205,10 +148,6 @@ resource "aws_ecs_service" "product" {
     security_groups = [var.ecs_sg_id]
     assign_public_ip = true
   }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.product.arn
-  }
 }
 
 ########################################
@@ -236,8 +175,8 @@ resource "aws_ecs_task_definition" "inventory" {
     }]
 
     environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@data-service.service.local:5432/microservices_db" },
-      { name = "REDIS_URL",    value = "redis://data-service.service.local:6379" }
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis://${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
     ]
 
     logConfiguration = {
@@ -267,10 +206,6 @@ resource "aws_ecs_service" "inventory" {
     security_groups = [var.ecs_sg_id]
     assign_public_ip = true
   }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.inventory.arn
-  }
 }
 
 ########################################
@@ -298,9 +233,9 @@ resource "aws_ecs_task_definition" "gateway" {
     }]
 
     environment = [
-      { name = "REDIS_URL", value = "redis://data-service.service.local:6379" },
-      { name = "PRODUCT_SERVICE_URL",   value = "http://product-service.service.local:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service.service.local:8002" }
+      { name = "REDIS_URL", value = "redis://${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
+      { name = "PRODUCT_SERVICE_URL",   value = "http://${var.environment}-product-service.ecs-fargate-cluster-${var.environment}.local:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://${var.environment}-inventory-service.ecs-fargate-cluster-${var.environment}.local:8002" }
     ]
 
     logConfiguration = {
