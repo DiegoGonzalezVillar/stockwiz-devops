@@ -117,8 +117,8 @@ resource "aws_ecs_task_definition" "product" {
     }]
 
     environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
-      { name = "REDIS_URL",    value = "redis:// ${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@dev-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
     ]
 
     logConfiguration = {
@@ -175,8 +175,8 @@ resource "aws_ecs_task_definition" "inventory" {
     }]
 
     environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
-      { name = "REDIS_URL",    value = "redis://${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@dev-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
+      { name = "REDIS_URL",    value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
     ]
 
     logConfiguration = {
@@ -233,9 +233,9 @@ resource "aws_ecs_task_definition" "gateway" {
     }]
 
     environment = [
-      { name = "REDIS_URL", value = "redis://${var.environment}-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
-      { name = "PRODUCT_SERVICE_URL",   value = "http://${var.environment}-product-service.ecs-fargate-cluster-${var.environment}.local:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://${var.environment}-inventory-service.ecs-fargate-cluster-${var.environment}.local:8002" }
+      { name = "REDIS_URL",              value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
+      { name = "PRODUCT_SERVICE_URL",    value = "http://dev-product-service.ecs-fargate-cluster-${var.environment}.local:8001" },
+      { name = "INVENTORY_SERVICE_URL",  value = "http://dev-inventory-service.ecs-fargate-cluster-${var.environment}.local:8002" }
     ]
 
     logConfiguration = {
