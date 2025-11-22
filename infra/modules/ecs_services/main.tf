@@ -24,9 +24,15 @@ resource "aws_cloudwatch_log_group" "inventory" {
   retention_in_days = 7
 }
 
-resource "aws_cloudwatch_log_group" "data" {
-  name              = "/ecs/${var.environment}-data-service"
-  retention_in_days = 7
+
+resource "aws_cloudwatch_log_group" "postgres" {
+  name              = "/ecs/${var.environment}-product-postgres"
+  retention_in_days = 3
+}
+
+resource "aws_cloudwatch_log_group" "redis" {
+  name              = "/ecs/${var.environment}-product-redis"
+  retention_in_days = 3
 }
 
 resource "aws_ecs_task_definition" "product" {
