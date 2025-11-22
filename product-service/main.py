@@ -1,345 +1,63 @@
-'''from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, List
-import asyncpg
-import redis.asyncio as redis
-import json
-import os
-from contextlib import asynccontextmanager
+from flask import Flask, request, jsonify
 
-# Modelos Pydantic
-class ProductCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    price: float = Field(..., gt=0)
-    category: Optional[str] = None
+app = Flask(__name__)
 
-class ProductUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    price: Optional[float] = Field(None, gt=0)
-    category: Optional[str] = None
+# -----------------------------
+# Base de datos en memoria
+# -----------------------------
+products = [
+    {"id": 1, "name": "Laptop Dell XPS 13", "description": "Ultrabook potente y ligera", "price": 1299.99, "category": "Electronics"},
+    {"id": 2, "name": "Mouse Logitech MX Master", "description": "Mouse ergonómico inalámbrico", "price": 99.99, "category": "Electronics"},
+    {"id": 3, "name": "Teclado Mecánico", "description": "Teclado mecánico RGB", "price": 149.99, "category": "Electronics"},
+    {"id": 4, "name": "Monitor 4K", "description": "Monitor 27 pulgadas 4K", "price": 499.99, "category": "Electronics"},
+    {"id": 5, "name": "Webcam HD", "description": "Cámara web Full HD", "price": 79.99, "category": "Electronics"},
+]
 
-class Product(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    price: float
-    category: Optional[str]
+# -----------------------------
+# Endpoints
+# -----------------------------
 
-# Variables globales
-db_pool = None
-redis_client = None
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"}), 200
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global db_pool, redis_client
-    # Startup
-    database_url = os.getenv("DATABASE_URL", "postgresql://admin:admin123@localhost:5432/microservices_db")
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    
-    db_pool = await asyncpg.create_pool(database_url, min_size=2, max_size=10)
-    redis_client = await redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
-    
-    print("✅ Product Service started successfully")
-    yield
-    
-    # Shutdown
-    await db_pool.close()
-    await redis_client.close()
-    print("🔌 Product Service shut down")
 
-app = FastAPI(title="Product Service", version="1.0.0", lifespan=lifespan)
+@app.route("/products", methods=["GET"])
+def get_products():
+    return jsonify(products)
 
-# Dependency para obtener conexión a BD
-async def get_db():
-    async with db_pool.acquire() as connection:
-        yield connection
 
-# Health check
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "product-service"}
+@app.route("/products/<int:product_id>", methods=["GET"])
+def get_product(product_id):
+    for p in products:
+        if p["id"] == product_id:
+            return jsonify(p)
+    return jsonify({"error": "Product not found"}), 404
 
-# Listar todos los productos
-@app.get("/products", response_model=List[Product])
-async def get_products(
-    category: Optional[str] = None,
-    db: asyncpg.Connection = Depends(get_db)
-):
-    cache_key = f"products:all:{category}" if category else "products:all"
-    
-    # Intentar obtener del cache
-    cached = await redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
-    
-    # Consultar BD
-    if category:
-        query = "SELECT * FROM products WHERE category = $1 ORDER BY id"
-        rows = await db.fetch(query, category)
-    else:
-        query = "SELECT * FROM products ORDER BY id"
-        rows = await db.fetch(query)
-    
-    products = [dict(row) for row in rows]
-    
-    # Guardar en cache por 5 minutos
-    await redis_client.setex(cache_key, 300, json.dumps(products, default=str))
-    
-    return products
 
-# Obtener producto por ID
-@app.get("/products/{product_id}", response_model=Product)
-async def get_product(product_id: int, db: asyncpg.Connection = Depends(get_db)):
-    cache_key = f"product:{product_id}"
-    
-    # Intentar obtener del cache
-    cached = await redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
-    
-    # Consultar BD
-    query = "SELECT * FROM products WHERE id = $1"
-    row = await db.fetchrow(query, product_id)
-    
-    if not row:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    product = dict(row)
-    
-    # Guardar en cache por 5 minutos
-    await redis_client.setex(cache_key, 300, json.dumps(product, default=str))
-    
-    return product
+@app.route("/products", methods=["POST"])
+def create_product():
+    new_prod = request.json
+    new_prod["id"] = max(p["id"] for p in products) + 1
+    products.append(new_prod)
+    return jsonify(new_prod), 201
 
-# Crear producto
-@app.post("/products", response_model=Product, status_code=201)
-async def create_product(product: ProductCreate, db: asyncpg.Connection = Depends(get_db)):
-    query = """
-        INSERT INTO products (name, description, price, category)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *
-    """
-    row = await db.fetchrow(
-        query, product.name, product.description, product.price, product.category
-    )
-    
-    new_product = dict(row)
-    
-    # Invalidar cache de listados (product service y gateway)
-    await redis_client.delete("products:all")
-    await redis_client.delete("gateway:products_full:all")
-    if product.category:
-        await redis_client.delete(f"products:all:{product.category}")
-    
-    return new_product
 
-# Actualizar producto
-@app.put("/products/{product_id}", response_model=Product)
-async def update_product(
-    product_id: int,
-    product: ProductUpdate,
-    db: asyncpg.Connection = Depends(get_db)
-):
-    # Verificar que existe
-    exists = await db.fetchrow("SELECT id, category FROM products WHERE id = $1", product_id)
-    if not exists:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    old_category = exists['category']
-    
-    # Construir query dinámicamente
-    updates = []
-    values = []
-    counter = 1
-    
-    if product.name is not None:
-        updates.append(f"name = ${counter}")
-        values.append(product.name)
-        counter += 1
-    if product.description is not None:
-        updates.append(f"description = ${counter}")
-        values.append(product.description)
-        counter += 1
-    if product.price is not None:
-        updates.append(f"price = ${counter}")
-        values.append(product.price)
-        counter += 1
-    if product.category is not None:
-        updates.append(f"category = ${counter}")
-        values.append(product.category)
-        counter += 1
-    
-    if not updates:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    
-    updates.append("updated_at = CURRENT_TIMESTAMP")
-    values.append(product_id)
-    
-    query = f"""
-        UPDATE products
-        SET {', '.join(updates)}
-        WHERE id = ${counter}
-        RETURNING *
-    """
-    
-    row = await db.fetchrow(query, *values)
-    updated_product = dict(row)
-    
-    # Invalidar caches
-    await redis_client.delete(f"product:{product_id}")
-    await redis_client.delete("products:all")
-    await redis_client.delete(f"products:all:{old_category}")
-    if product.category:
-        await redis_client.delete(f"products:all:{product.category}")
-    
-    return updated_product
+@app.route("/products/<int:product_id>", methods=["PUT"])
+def update_product(product_id):
+    for p in products:
+        if p["id"] == product_id:
+            p.update(request.json)
+            return jsonify(p)
+    return jsonify({"error": "Product not found"}), 404
 
-# Eliminar producto
-@app.delete("/products/{product_id}", status_code=204)
-async def delete_product(product_id: int, db: asyncpg.Connection = Depends(get_db)):
-    result = await db.execute("DELETE FROM products WHERE id = $1", product_id)
-    
-    if result == "DELETE 0":
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    # Invalidar caches
-    await redis_client.delete(f"product:{product_id}")
-    await redis_client.delete("products:all")
-    
-    return None
+
+@app.route("/products/<int:product_id>", methods=["DELETE"])
+def delete_product(product_id):
+    global products
+    products = [p for p in products if p["id"] != product_id]
+    return jsonify({"message": "Deleted"}), 200
+
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)'''
-
-from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, List
-import aiosqlite
-import json
-import os
-from contextlib import asynccontextmanager
-
-# DB path (SQLite)
-DB_PATH = os.getenv("DB_PATH", "/app/micro.db")
-
-# Pydantic models
-class ProductCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    price: float = Field(..., gt=0)
-    category: Optional[str] = None
-
-class ProductUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    category: Optional[str] = None
-
-class Product(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    price: float
-    category: Optional[str]
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("✅ Product Service started with SQLite")
-    yield
-    print("🔌 Product Service shut down")
-
-app = FastAPI(title="Product Service", version="1.0.0", lifespan=lifespan)
-
-# Dependency
-async def get_db():
-    conn = await aiosqlite.connect(DB_PATH)
-    conn.row_factory = aiosqlite.Row
-    try:
-        yield conn
-    finally:
-        await conn.close()
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "service": "product-service"}
-
-@app.get("/products", response_model=List[Product])
-async def get_products(category: Optional[str] = None, db=Depends(get_db)):
-    if category:
-        query = "SELECT * FROM products WHERE category = ? ORDER BY id"
-        cursor = await db.execute(query, (category,))
-    else:
-        query = "SELECT * FROM products ORDER BY id"
-        cursor = await db.execute(query)
-
-    rows = await cursor.fetchall()
-    return [dict(row) for row in rows]
-
-@app.get("/products/{product_id}", response_model=Product)
-async def get_product(product_id: int, db=Depends(get_db)):
-    cursor = await db.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-    row = await cursor.fetchone()
-
-    if not row:
-        raise HTTPException(404, "Product not found")
-
-    return dict(row)
-
-@app.post("/products", response_model=Product, status_code=201)
-async def create_product(product: ProductCreate, db=Depends(get_db)):
-    query = """
-        INSERT INTO products (name, description, price, category)
-        VALUES (?, ?, ?, ?) RETURNING *
-    """
-    cursor = await db.execute(query, (product.name, product.description, product.price, product.category))
-    row = await cursor.fetchone()
-    await db.commit()
-    return dict(row)
-
-@app.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: int, product: ProductUpdate, db=Depends(get_db)):
-    # Check exists
-    cursor = await db.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-    existing = await cursor.fetchone()
-    if not existing:
-        raise HTTPException(404, "Product not found")
-
-    updates = []
-    values = []
-
-    if product.name is not None:
-        updates.append("name = ?")
-        values.append(product.name)
-
-    if product.description is not None:
-        updates.append("description = ?")
-        values.append(product.description)
-
-    if product.price is not None:
-        updates.append("price = ?")
-        values.append(product.price)
-
-    if product.category is not None:
-        updates.append("category = ?")
-        values.append(product.category)
-
-    if not updates:
-        raise HTTPException(400, "No fields to update")
-
-    query = f"UPDATE products SET {', '.join(updates)} WHERE id = ? RETURNING *"
-    values.append(product_id)
-
-    cursor = await db.execute(query, values)
-    row = await cursor.fetchone()
-    await db.commit()
-
-    return dict(row)
-
-@app.delete("/products/{product_id}", status_code=204)
-async def delete_product(product_id: int, db=Depends(get_db)):
-    result = await db.execute("DELETE FROM products WHERE id = ?", (product_id,))
-    await db.commit()
-    return None
+    app.run(host="0.0.0.0", port=8001)
