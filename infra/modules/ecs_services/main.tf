@@ -65,7 +65,7 @@ resource "aws_ecs_task_definition" "product" {
       ]
 
       dependsOn = [
-        { containerName = "postgres", condition = "START" },
+        { containerName = "postgres", condition = "HEALTHY" },
         { containerName = "redis", condition = "START" }
       ]
 
@@ -82,35 +82,44 @@ resource "aws_ecs_task_definition" "product" {
     ###########################
     ## POSTGRES SIN PERSISTENCIA
     ###########################
-    {
-      name      = "postgres"
-      image     = "postgres:15"
-      essential = false
+   {
+  name      = "postgres"
+  image     = "postgres:15"
+  essential = false
 
-      environment = [
-        { name = "POSTGRES_USER", value = "admin" },
-        { name = "POSTGRES_PASSWORD", value = "admin123" },
-        { name = "POSTGRES_DB", value = "microservices_db" }
-      ]
+  environment = [
+    { name = "POSTGRES_USER",     value = "admin" },
+    { name = "POSTGRES_PASSWORD", value = "admin123" },
+    { name = "POSTGRES_DB",       value = "microservices_db" }
+  ]
 
-      portMappings = [{
-        containerPort = 5432
-      }]
+  portMappings = [{
+    containerPort = 5432
+  }]
 
-      mountPoints = [{
-        sourceVolume  = "tmp-data"
-        containerPath = "/var/lib/postgresql/data"
-      }]
+  mountPoints = [{
+    sourceVolume  = "tmp-data"
+    containerPath = "/var/lib/postgresql/data"
+  }]
 
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          "awslogs-region"        = var.aws_region,
-          "awslogs-group"         = aws_cloudwatch_log_group.postgres.name,
-          "awslogs-stream-prefix" = "ecs"
-        }
-      }
-    },
+  healthCheck = {
+    command     = ["CMD-SHELL", "pg_isready -U admin -d microservices_db"]
+    interval    = 5
+    timeout     = 3
+    retries     = 5
+    startPeriod = 10
+  }
+
+  logConfiguration = {
+    logDriver = "awslogs",
+    options = {
+      "awslogs-region"        = var.aws_region,
+      "awslogs-group"         = aws_cloudwatch_log_group.postgres.name,
+      "awslogs-stream-prefix" = "ecs"
+    }
+  }
+},
+
 
     ###########################
     ## REDIS SIN CONFIG EXTRA
