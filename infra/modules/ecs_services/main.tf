@@ -115,7 +115,7 @@ resource "aws_ecs_task_definition" "product" {
           "awslogs-stream-prefix" = "ecs"
         }
       }
-    },
+    }
 
     # ###########################
     # ## POSTGRES SIN PERSISTENCIA
@@ -201,9 +201,9 @@ resource "aws_ecs_task_definition" "inventory" {
       protocol      = "tcp"
     }]
 
-    environment = [
-      { name = "DB_PATH", value = "/app/micro.db" }
-    ]
+    # environment = [
+    #   { name = "DB_PATH", value = "/app/micro.db" }
+    # ]
 
     logConfiguration = {
       logDriver = "awslogs"
