@@ -31,10 +31,9 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_subnet" "public_subnets" {
   vpc_id = aws_vpc.app_vpc.id
 
-  count             = 2
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index) # ej: 10.0.0.0/24, 10.0.1.0/24
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-
+  count                   = 2
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index) # ej: 10.0.0.0/24, 10.0.1.0/24
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
   tags = {
@@ -158,30 +157,36 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# SG para tareas ECS (solo recibe del ALB)
 resource "aws_security_group" "ecs_sg" {
   name        = "${var.environment}-ecs-sg"
-  description = "ECS instances & tasks security group"
+  description = "SG for Fargate tasks"
   vpc_id      = aws_vpc.app_vpc.id
 
-  # Permitir tráfico desde el ALB -> puerto 8000 (API Gateway)
+  # API Gateway
   ingress {
-    description     = "ALB to API Gateway"
     from_port       = 8000
     to_port         = 8000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id]
   }
 
-  # Permitir tráfico interno entre tareas ECS (service-to-service)
+  # Product
   ingress {
-    description = "Internal ECS communication"
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    self        = true
+    from_port       = 8001
+    to_port         = 8001
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
   }
 
+  # Inventory
+  ingress {
+    from_port       = 8002
+    to_port         = 8002
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  # Fargate outbound traffic - OBLIGATORIO
   egress {
     from_port   = 0
     to_port     = 0
@@ -194,4 +199,5 @@ resource "aws_security_group" "ecs_sg" {
     Environment = var.environment
   }
 }
+
 
