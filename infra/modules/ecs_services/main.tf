@@ -29,13 +29,8 @@ resource "aws_cloudwatch_log_group" "data" {
   retention_in_days = 7
 }
 
-########################################
-# TASK DEFINITIONS – DATA SERVICE
-# (POSTGRES + REDIS)
-########################################
-
-resource "aws_ecs_task_definition" "data" {
-  family                   = "${var.environment}-data-service"
+resource "aws_ecs_task_definition" "product" {
+  family                   = "${var.environment}-product-service"
   cpu                      = "512"
   memory                   = "1024"
   network_mode             = "awsvpc"
@@ -45,91 +40,98 @@ resource "aws_ecs_task_definition" "data" {
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
+    ###########################
+    ## PRODUCT SERVICE
+    ###########################
     {
-      name      = "postgres"
-      image     = "postgres:15-alpine"
+      name      = "product-service"
+      image     = var.product_image
       essential = true
 
+      portMappings = [{
+        containerPort = 8001
+        protocol      = "tcp"
+      }]
+
       environment = [
-        { name = "POSTGRES_DB",       value = "microservices_db" },
-        { name = "POSTGRES_USER",     value = "admin" },
-        { name = "POSTGRES_PASSWORD", value = "admin123" }
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres:5432/microservices_db" },
+        { name = "REDIS_URL", value = "redis://redis:6379" }
+      ]
+
+      dependsOn = [
+        { containerName = "postgres", condition = "START" },
+        { containerName = "redis", condition = "START" }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          "awslogs-region"        = var.aws_region,
+          "awslogs-group"         = aws_cloudwatch_log_group.product.name,
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    },
+
+    ###########################
+    ## POSTGRES SIN PERSISTENCIA
+    ###########################
+    {
+      name      = "postgres"
+      image     = "postgres:15"
+      essential = false
+
+      environment = [
+        { name = "POSTGRES_USER", value = "admin" },
+        { name = "POSTGRES_PASSWORD", value = "admin123" },
+        { name = "POSTGRES_DB", value = "microservices_db" }
       ]
 
       portMappings = [{
         containerPort = 5432
-        protocol      = "tcp"
       }]
+
+      mountPoints = [{
+        sourceVolume  = "tmp-data"
+        containerPath = "/var/lib/postgresql/data"
+      }]
+
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          "awslogs-region"        = var.aws_region,
+          "awslogs-group"         = aws_cloudwatch_log_group.postgres.name,
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     },
+
+    ###########################
+    ## REDIS SIN CONFIG EXTRA
+    ###########################
     {
       name      = "redis"
-      image     = "redis:7-alpine"
-      essential = true
+      image     = "redis:7"
+      essential = false
 
       portMappings = [{
         containerPort = 6379
-        protocol      = "tcp"
       }]
-    }
-  ])
-}
 
-########################################
-# ECS SERVICE – DATA SERVICE
-########################################
-
-resource "aws_ecs_service" "data" {
-  name            = "${var.environment}-data-service"
-  cluster         = var.cluster_name
-  task_definition = aws_ecs_task_definition.data.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets         = var.public_subnets_ids
-    security_groups = [var.ecs_sg_id]
-    assign_public_ip = true
-  }
-}
-
-########################################
-# TASK DEFINITIONS – PRODUCT SERVICE
-########################################
-
-resource "aws_ecs_task_definition" "product" {
-  family                   = "${var.environment}-product-service"
-  cpu                      = "256"
-  memory                   = "512"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-
-  execution_role_arn = data.aws_iam_role.lab_role.arn
-  task_role_arn      = data.aws_iam_role.lab_role.arn
-
-  container_definitions = jsonencode([{
-    name      = "product-service"
-    image     = var.product_image
-    essential = true
-
-    portMappings = [{
-      containerPort = 8001
-      protocol      = "tcp"
-    }]
-
-    environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@dev-data-service.ecs-fargate-cluster-${var.environment}.local:5432/microservices_db" },
-      { name = "REDIS_URL",    value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" }
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-region"        = var.aws_region
-        "awslogs-group"         = aws_cloudwatch_log_group.product.name
-        "awslogs-stream-prefix" = "ecs"
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          "awslogs-region"        = var.aws_region,
+          "awslogs-group"         = aws_cloudwatch_log_group.redis.name,
+          "awslogs-stream-prefix" = "ecs"
+        }
       }
     }
-  }])
+  ])
+
+  volume {
+    name = "tmp-data"
+  }
 }
 
 ########################################
