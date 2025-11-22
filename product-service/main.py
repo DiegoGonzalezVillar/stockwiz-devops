@@ -1,4 +1,11 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, Field
+from typing import Optional, List
+import asyncpg
+import redis.asyncio as redis
+import json
+import os
+from contextlib import asynccontextmanager
 
 app = Flask(__name__)
 
@@ -43,21 +50,68 @@ def create_product():
     return jsonify(new_prod), 201
 
 
-@app.route("/products/<int:product_id>", methods=["PUT"])
-def update_product(product_id):
-    for p in products:
-        if p["id"] == product_id:
-            p.update(request.json)
-            return jsonify(p)
-    return jsonify({"error": "Product not found"}), 404
-
-
-@app.route("/products/<int:product_id>", methods=["DELETE"])
-def delete_product(product_id):
-    global products
-    products = [p for p in products if p["id"] != product_id]
-    return jsonify({"message": "Deleted"}), 200
+# Actualizar producto
+@app.put("/products/{product_id}", response_model=Product)
+async def update_product(
+    product_id: int,
+    product: ProductUpdate,
+    db: asyncpg.Connection = Depends(get_db)
+):
+    # Verificar que existe
+    exists = await db.fetchrow("SELECT id, category FROM products WHERE id = $1", product_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    old_category = exists['category']
+    
+    # Construir query dinámicamente
+    updates = []
+    values = []
+    counter = 1
+    
+    if product.name is not None:
+        updates.append(f"name = ${counter}")
+        values.append(product.name)
+        counter += 1
+    if product.description is not None:
+        updates.append(f"description = ${counter}")
+        values.append(product.description)
+        counter += 1
+    if product.price is not None:
+        updates.append(f"price = ${counter}")
+        values.append(product.price)
+        counter += 1
+    if product.category is not None:
+        updates.append(f"category = ${counter}")
+        values.append(product.category)
+        counter += 1
+    
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    updates.append(f"updated_at = CURRENT_TIMESTAMP")
+    values.append(product_id)
+    
+    query = f"""
+        UPDATE products
+        SET {', '.join(updates)}
+        WHERE id = ${counter}
+        RETURNING *
+    """
+    
+    row = await db.fetchrow(query, *values)
+    updated_product = dict(row)
+    
+    # Invalidar caches
+    await redis_client.delete(f"product:{product_id}")
+    await redis_client.delete("products:all")
+    await redis_client.delete(f"products:all:{old_category}")
+    if product.category:
+        await redis_client.delete(f"products:all:{product.category}")
+    
+    return updated_product
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8001)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
