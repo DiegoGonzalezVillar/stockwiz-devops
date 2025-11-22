@@ -54,11 +54,11 @@ resource "aws_ecs_task_definition" "gateway" {
       protocol      = "tcp"
     }]
 
-    # environment = [
-    #   { name = "PRODUCT_SERVICE_URL", value = "http://product-service:8001" },
-    #   { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service:8002" },
-    #   # { name = "REDIS_URL", value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
-    # ]
+    environment = [
+      { name = "PRODUCT_SERVICE_URL", value = "http://product-service:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://inventory-service:8002" },
+      # { name = "REDIS_URL", value = "redis://dev-data-service.ecs-fargate-cluster-${var.environment}.local:6379" },
+    ]
 
 
     logConfiguration = {
@@ -97,10 +97,10 @@ resource "aws_ecs_task_definition" "product" {
         protocol      = "tcp"
       }]
 
-      # environment = [
-      #   { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres:5432/microservices_db" },
-      #   { name = "REDIS_URL", value = "redis://redis:6379" }
-      # ]
+      environment = [
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres:5432/microservices_db" },
+        { name = "REDIS_URL", value = "redis://redis:6379" }
+      ]
 
       # dependsOn = [
       #   { containerName = "postgres", condition = "START" },
@@ -116,61 +116,6 @@ resource "aws_ecs_task_definition" "product" {
         }
       }
     }
-
-    # ###########################
-    # ## POSTGRES SIN PERSISTENCIA
-    # ###########################
-    # {
-    #   name      = "postgres"
-    #   image     = "postgres:15"
-    #   essential = false
-
-    #   environment = [
-    #     { name = "POSTGRES_USER", value = "admin" },
-    #     { name = "POSTGRES_PASSWORD", value = "admin123" },
-    #     { name = "POSTGRES_DB", value = "microservices_db" }
-    #   ]
-
-    #   portMappings = [{
-    #     containerPort = 5432
-    #   }]
-
-    #   mountPoints = [{
-    #     sourceVolume  = "tmp-data"
-    #     containerPath = "/var/lib/postgresql/data"
-    #   }]
-
-    #   logConfiguration = {
-    #     logDriver = "awslogs",
-    #     options = {
-    #       "awslogs-region"        = var.aws_region,
-    #       "awslogs-group"         = aws_cloudwatch_log_group.postgres.name,
-    #       "awslogs-stream-prefix" = "ecs"
-    #     }
-    #   }
-    # },
-
-    # ###########################
-    # ## REDIS SIN CONFIG EXTRA
-    # ###########################
-    # {
-    #   name      = "redis"
-    #   image     = "redis:7"
-    #   essential = false
-
-    #   portMappings = [{
-    #     containerPort = 6379
-    #   }]
-
-    #   logConfiguration = {
-    #     logDriver = "awslogs",
-    #     options = {
-    #       "awslogs-region"        = var.aws_region,
-    #       "awslogs-group"         = aws_cloudwatch_log_group.redis.name,
-    #       "awslogs-stream-prefix" = "ecs"
-    #     }
-    #   }
-    # }
   ])
 
   volume {
@@ -266,4 +211,3 @@ resource "aws_ecs_service" "inventory" {
     assign_public_ip = true
   }
 }
-
