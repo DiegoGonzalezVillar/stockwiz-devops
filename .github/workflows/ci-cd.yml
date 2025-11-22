@@ -98,17 +98,17 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster ecs-fargate-cluster-dev \
-            --service dev-api-gateway-svc \
+            --service dev-api-gateway \
             --force-new-deployment
 
           aws ecs update-service \
             --cluster ecs-fargate-cluster-dev \
-            --service dev-product-service-svc \
+            --service dev-product-service \
             --force-new-deployment
 
           aws ecs update-service \
             --cluster ecs-fargate-cluster-dev \
-            --service dev-inventory-service-svc \
+            --service dev-inventory-service \
             --force-new-deployment
 
   ###########################################################
