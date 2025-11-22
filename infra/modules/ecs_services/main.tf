@@ -21,15 +21,15 @@ resource "aws_cloudwatch_log_group" "inventory" {
   retention_in_days = 7
 }
 
-resource "aws_cloudwatch_log_group" "postgres" {
-  name              = "/ecs/${var.environment}-product-postgres"
-  retention_in_days = 3
-}
+# resource "aws_cloudwatch_log_group" "postgres" {
+#   name              = "/ecs/${var.environment}-product-postgres"
+#   retention_in_days = 3
+# }
 
-resource "aws_cloudwatch_log_group" "redis" {
-  name              = "/ecs/${var.environment}-product-redis"
-  retention_in_days = 3
-}
+# resource "aws_cloudwatch_log_group" "redis" {
+#   name              = "/ecs/${var.environment}-product-redis"
+#   retention_in_days = 3
+# }
 
 # TASK DEFINITIONS (FARGATE)
 
@@ -102,10 +102,10 @@ resource "aws_ecs_task_definition" "product" {
       #   { name = "REDIS_URL", value = "redis://redis:6379" }
       # ]
 
-      dependsOn = [
-        { containerName = "postgres", condition = "START" },
-        { containerName = "redis", condition = "START" }
-      ]
+      # dependsOn = [
+      #   { containerName = "postgres", condition = "START" },
+      #   { containerName = "redis", condition = "START" }
+      # ]
 
       logConfiguration = {
         logDriver = "awslogs",
@@ -266,3 +266,4 @@ resource "aws_ecs_service" "inventory" {
     assign_public_ip = true
   }
 }
+
