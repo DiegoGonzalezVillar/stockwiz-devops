@@ -33,16 +33,15 @@ resource "aws_cloudwatch_log_group" "data" {
 # CLOUD MAP (SERVICE DISCOVERY)
 ########################################
 
-# Necesitamos el VPC ID derivado de las subnets
-data "aws_subnet" "public_subnets" {
-  for_each = toset(var.public_subnets_ids)
-  id       = each.key
+data "aws_subnet" "public_subnet" {
+  id = var.public_subnets_ids[0]
 }
 
 resource "aws_service_discovery_private_dns_namespace" "main" {
   name = "service.local"
-  vpc  = element(values(data.aws_subnet.public_subnets), 0).vpc_id
+  vpc  = data.aws_subnet.public_subnet.vpc_id
 }
+
 
 resource "aws_service_discovery_service" "data" {
   name = "data-service"
