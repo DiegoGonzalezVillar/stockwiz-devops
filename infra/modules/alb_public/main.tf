@@ -1,8 +1,9 @@
-
-# Application Load Balancer
+##############################################
+# PUBLIC ALB (API Gateway)
+##############################################
 
 resource "aws_lb" "this" {
-  name               = "${var.environment}-alb"
+  name               = "${var.environment}-alb-public"
   internal           = false
   load_balancer_type = "application"
 
@@ -10,26 +11,23 @@ resource "aws_lb" "this" {
   subnets         = var.public_subnets_ids
 
   enable_deletion_protection = false
-  idle_timeout               = 60
 
   tags = {
-    Name        = "${var.environment}-alb"
+    Name        = "${var.environment}-alb-public"
     Environment = var.environment
   }
 }
-
-# Target Group para el api-gateway
 
 resource "aws_lb_target_group" "gateway" {
   name        = "${var.environment}-gateway-tg"
   port        = var.gateway_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
-  target_type = "ip" # asumiendo ECS con awsvpc
+  target_type = "ip"
 
   health_check {
-    enabled             = true
     path                = "/health"
+    protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
     timeout             = 5
@@ -42,8 +40,6 @@ resource "aws_lb_target_group" "gateway" {
     Environment = var.environment
   }
 }
-
-# Listener HTTP 80
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn

@@ -1,7 +1,3 @@
-variable "name" {
-  type = string
-}
-
 variable "environment" {
   type = string
 }
@@ -10,14 +6,15 @@ variable "vpc_id" {
   type = string
 }
 
-variable "private_subnets" {
+variable "public_subnets_ids" {
   type = list(string)
 }
 
-variable "sg_id" {
+variable "alb_sg_id" {
   type = string
 }
 
-variable "port" {
-  type = number
+variable "gateway_port" {
+  type    = number
+  default = 8000
 }
