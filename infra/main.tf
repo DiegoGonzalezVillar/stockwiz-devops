@@ -5,6 +5,7 @@ locals {
 # -------------------------
 # 1) ECR
 # -------------------------
+
 module "ecr" {
   source       = "./modules/ecr"
   name_prefix  = local.name_prefix
@@ -21,10 +22,10 @@ module "vpc" {
 }
 
 # -------------------------
-# 3) ALB PÚBLICO (API Gateway)
+# 3) ALB PÚBLICO (API Gateway)nuevo
 # -------------------------
-module "alb" {
-  source             = "./modules/alb"
+module "alb_public" {
+  source             = "./modules/alb_public"
   environment        = var.env
   vpc_id             = module.vpc.vpc_id
   public_subnets_ids = module.vpc.public_subnets_ids
@@ -33,83 +34,41 @@ module "alb" {
 }
 
 # -------------------------
-# 4) ECS CLUSTER
+# 4) ALB INTERNO (product + inventory)
+# -------------------------
+module "alb_internal" {
+  source              = "./modules/alb_internal"
+  environment         = var.env
+  vpc_id              = module.vpc.vpc_id
+  private_subnets_ids = module.vpc.private_subnets_ids
+  alb_sg_id           = module.vpc.ecs_sg_id
+}
+
+# -------------------------
+# 5) ECS CLUSTER
 # -------------------------
 resource "aws_ecs_cluster" "fargate" {
   name = "ecs-fargate-cluster-${var.env}"
-
-  tags = {
-    Name        = "ecs-fargate-cluster-${var.env}"
-    Environment = var.env
-  }
-}
-
-# -------------------------
-# 5) ALBs INTERNOS (product, inventory, dbcache)
-# -------------------------
-
-module "alb_product" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-product"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 8001
-}
-
-module "alb_inventory" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-inventory"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 8002
-}
-
-module "alb_dbcache" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-dbcache"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 5432
 }
 
 # -------------------------
 # 6) ECS SERVICES
 # -------------------------
-
 module "ecs_services" {
   source              = "./modules/ecs_services"
   environment         = var.env
-  cluster_name        = "ecs-fargate-cluster-${var.env}"
+  cluster_name        = aws_ecs_cluster.fargate.name
 
-  # Networking
   public_subnets_ids  = module.vpc.public_subnets_ids
   private_subnets_ids = module.vpc.private_subnets_ids
   ecs_sg_id           = module.vpc.ecs_sg_id
   vpc_id              = module.vpc.vpc_id
 
-  # ALB publico (gateway)
-  gateway_tg_arn = module.alb.gateway_tg_arn
+  gateway_tg_arn    = module.alb_public.gateway_tg_arn
+  product_tg_arn    = module.alb_internal.product_tg_arn
+  inventory_tg_arn  = module.alb_internal.inventory_tg_arn
 
-  # ALBs internos
-  tg_product_arn   = module.alb_product.target_group_arn
-  tg_inventory_arn = module.alb_inventory.target_group_arn
-  tg_dbcache_arn   = module.alb_dbcache.target_group_arn
-
-  # Imágenes
-  gateway_image       = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
-  product_image       = "${module.ecr.repo_uris["product-service"]}:${var.env}-latest"
-  inventory_image     = "${module.ecr.repo_uris["inventory-service"]}:${var.env}-latest"
-
-  # DNS internos
-  dns_product   = module.alb_product.alb_dns_name
-  dns_inventory = module.alb_inventory.alb_dns_name
-  dns_dbcache   = module.alb_dbcache.alb_dns_name
+  gateway_image      = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
+  product_image      = "${module.ecr.repo_uris["product-service"]}:${var.env}-latest"
+  inventory_image    = "${module.ecr.repo_uris["inventory-service"]}:${var.env}-latest"
 }
-
-
