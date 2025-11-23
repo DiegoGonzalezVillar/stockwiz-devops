@@ -6,15 +6,6 @@ data "aws_iam_role" "lab_role" {
 }
 
 ##############################################
-# CLOUD MAP NAMESPACE (REQUIERE LabRole OK)
-##############################################
-
-resource "aws_service_discovery_http_namespace" "services" {
-  name        = "${var.environment}.local"
-  description = "Service discovery namespace"
-}
-
-##############################################
 # LOG GROUPS
 ##############################################
 
@@ -34,24 +25,23 @@ resource "aws_cloudwatch_log_group" "inventory" {
 }
 
 ##############################################
-# TASK DEFINITIONS
+# DBCACHE (POSTGRES + REDIS) – SIN ALB
 ##############################################
 
-### DBCACHE – Postgres + Redis
 resource "aws_ecs_task_definition" "dbcache" {
-  family                   = "${var.environment}-dbcache"
+  family                   = "dbcache"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
   cpu                      = "512"
   memory                   = "1024"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
 
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
     {
-      name  = "postgres"
-      image = "postgres:15-alpine"
+      name      = "postgres"
+      image     = "postgres:15-alpine"
       essential = true
       environment = [
         { name = "POSTGRES_USER",     value = "admin" },
@@ -61,8 +51,8 @@ resource "aws_ecs_task_definition" "dbcache" {
       portMappings = [{ containerPort = 5432 }]
     },
     {
-      name  = "redis"
-      image = "redis:7-alpine"
+      name      = "redis"
+      image     = "redis:7-alpine"
       essential = true
       portMappings = [{ containerPort = 6379 }]
     }
@@ -70,7 +60,7 @@ resource "aws_ecs_task_definition" "dbcache" {
 }
 
 resource "aws_ecs_service" "dbcache" {
-  name            = "${var.environment}-dbcache"
+  name            = "dbcache"
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.dbcache.arn
   desired_count   = 1
@@ -81,15 +71,10 @@ resource "aws_ecs_service" "dbcache" {
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = false
   }
-
-  service_registries {
-    registry_arn = aws_service_discovery_http_namespace.services.arn
-    port         = 5432
-  }
 }
 
 ##############################################
-# GATEWAY – ALB Público
+# API GATEWAY – detrás del ALB público
 ##############################################
 
 resource "aws_ecs_task_definition" "gateway" {
@@ -104,23 +89,24 @@ resource "aws_ecs_task_definition" "gateway" {
 
   container_definitions = jsonencode([
     {
-      name  = "api-gateway"
-      image = var.gateway_image
+      name      = "api-gateway"
+      image     = var.gateway_image
       essential = true
+
       portMappings = [{ containerPort = 8000 }]
 
       environment = [
-        { name = "PRODUCT_SERVICE_URL",   value = "http://product.${var.environment}.local:8001" },
-        { name = "INVENTORY_SERVICE_URL", value = "http://inventory.${var.environment}.local:8002" },
-        { name = "REDIS_URL",             value = "redis://dbcache.${var.environment}.local:6379" }
+        { name = "PRODUCT_SERVICE_URL",   value = "http://${var.dns_product}:8001" },
+        { name = "INVENTORY_SERVICE_URL", value = "http://${var.dns_inventory}:8002" },
+        { name = "REDIS_URL",             value = "redis://dbcache:6379" }
       ]
 
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.gateway.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
+          "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
         }
       }
     }
@@ -131,8 +117,8 @@ resource "aws_ecs_service" "gateway" {
   name            = "${var.environment}-api-gateway-svc"
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.gateway.arn
-  desired_count   = 1
   launch_type     = "FARGATE"
+  desired_count   = 1
 
   network_configuration {
     subnets          = var.public_subnets_ids
@@ -148,7 +134,7 @@ resource "aws_ecs_service" "gateway" {
 }
 
 ##############################################
-# PRODUCT SERVICE – Cloud Map
+# PRODUCT (ALB interno)
 ##############################################
 
 resource "aws_ecs_task_definition" "product" {
@@ -163,22 +149,23 @@ resource "aws_ecs_task_definition" "product" {
 
   container_definitions = jsonencode([
     {
-      name  = "product"
-      image = var.product_image
+      name      = "product"
+      image     = var.product_image
       essential = true
+
       portMappings = [{ containerPort = 8001 }]
 
       environment = [
-        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache.${var.environment}.local:5432/microservices_db" },
-        { name = "REDIS_URL",     value = "redis://dbcache.${var.environment}.local:6379" }
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
       ]
 
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.product.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
+          "awslogs-group"         = aws_cloudwatch_log_group.product.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
         }
       }
     }
@@ -186,11 +173,11 @@ resource "aws_ecs_task_definition" "product" {
 }
 
 resource "aws_ecs_service" "product" {
-  name            = "${var.environment}-product-service"
+  name            = "${var.environment}-product-service-svc"
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.product.arn
-  desired_count   = 1
   launch_type     = "FARGATE"
+  desired_count   = 1
 
   network_configuration {
     subnets          = var.private_subnets_ids
@@ -198,14 +185,15 @@ resource "aws_ecs_service" "product" {
     assign_public_ip = false
   }
 
-  service_registries {
-    registry_arn = aws_service_discovery_http_namespace.services.arn
-    port         = 8001
+  load_balancer {
+    target_group_arn = var.tg_product_arn
+    container_name   = "product"
+    container_port   = 8001
   }
 }
 
 ##############################################
-# INVENTORY SERVICE – Cloud Map
+# INVENTORY (ALB interno)
 ##############################################
 
 resource "aws_ecs_task_definition" "inventory" {
@@ -220,22 +208,23 @@ resource "aws_ecs_task_definition" "inventory" {
 
   container_definitions = jsonencode([
     {
-      name  = "inventory"
-      image = var.inventory_image
+      name      = "inventory"
+      image     = var.inventory_image
       essential = true
+
       portMappings = [{ containerPort = 8002 }]
 
       environment = [
-        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache.${var.environment}.local:5432/microservices_db" },
-        { name = "REDIS_URL",     value = "redis://dbcache.${var.environment}.local:6379" }
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
       ]
 
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.inventory.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
+          "awslogs-group"         = aws_cloudwatch_log_group.inventory.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
         }
       }
     }
@@ -243,11 +232,11 @@ resource "aws_ecs_task_definition" "inventory" {
 }
 
 resource "aws_ecs_service" "inventory" {
-  name            = "${var.environment}-inventory-service"
+  name            = "${var.environment}-inventory-service-svc"
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.inventory.arn
-  desired_count   = 1
   launch_type     = "FARGATE"
+  desired_count   = 1
 
   network_configuration {
     subnets          = var.private_subnets_ids
@@ -255,8 +244,9 @@ resource "aws_ecs_service" "inventory" {
     assign_public_ip = false
   }
 
-  service_registries {
-    registry_arn = aws_service_discovery_http_namespace.services.arn
-    port         = 8002
+  load_balancer {
+    target_group_arn = var.tg_inventory_arn
+    container_name   = "inventory"
+    container_port   = 8002
   }
 }
