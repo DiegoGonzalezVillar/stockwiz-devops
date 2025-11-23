@@ -21,22 +21,6 @@ resource "aws_cloudwatch_log_group" "inventory" {
   retention_in_days = 7
 }
 
-# resource "aws_cloudwatch_log_group" "postgres" {
-#   name              = "/ecs/${var.environment}-product-postgres"
-#   retention_in_days = 3
-# }
-
-# resource "aws_cloudwatch_log_group" "redis" {
-#   name              = "/ecs/${var.environment}-product-redis"
-#   retention_in_days = 3
-# }
-
-resource "aws_service_discovery_private_dns_namespace" "internal" {
-  name        = "internal"
-  description = "Private namespace"
-  vpc         = var.vpc_id
-}
-
 # TASK DEFINITIONS (FARGATE)
 
 resource "aws_ecs_task_definition" "dbcache" {
@@ -71,31 +55,16 @@ resource "aws_ecs_task_definition" "dbcache" {
 }
 
 resource "aws_ecs_service" "dbcache" {
-  name            = "dbcache-service"
+  name            = "dbcache"              # IMPORTANTE: este es el DNS interno
   cluster         = var.cluster_name
   task_definition = aws_ecs_task_definition.dbcache.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = var.private_subnets_ids
+    subnets         = var.private_subnets_ids
+    security_groups = [var.ecs_sg_id]
     assign_public_ip = false
-  }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.dbcache.arn
-  }
-}
-
-resource "aws_service_discovery_service" "dbcache" {
-  name = "postgres-redis"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.internal.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
   }
 }
 
@@ -122,9 +91,9 @@ resource "aws_ecs_task_definition" "gateway" {
     }]
 
     environment = [
-      { name = "PRODUCT_SERVICE_URL", value = "http://product.internal:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://inventory.internal:8002" },
-      { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
+      { name = "PRODUCT_SERVICE_URL", value = "http://product:8001" },
+      { name = "INVENTORY_SERVICE_URL", value = "http://inventory:8002" },
+      { name = "REDIS_URL", value = "redis://postgres-redis:6379" }
     ]
 
     logConfiguration = {
@@ -161,8 +130,8 @@ resource "aws_ecs_task_definition" "product" {
       }]
 
       environment = [
-        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis.internal:5432/microservices_db" },
-        { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis:5432/microservices_db" },
+        { name = "REDIS_URL", value = "redis://postgres-redis:6379" }
       ]
       logConfiguration = {
         logDriver = "awslogs",
@@ -199,8 +168,8 @@ resource "aws_ecs_task_definition" "inventory" {
     }]
 
     environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis.internal:5432/microservices_db" },
-      { name = "REDIS_URL", value = "redis://postgres-redis.internal:6379" }
+      { name = "DATABASE_URL", value = "postgresql://admin:admin123@postgres-redis:5432/microservices_db" },
+      { name = "REDIS_URL", value = "redis://postgres-redis:6379" }
     ]
 
     logConfiguration = {
