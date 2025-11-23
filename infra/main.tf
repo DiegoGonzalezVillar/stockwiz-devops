@@ -65,14 +65,6 @@ module "ecs_services" {
   # Public ALB → API Gateway
   gateway_tg_arn = module.alb_public.gateway_tg_arn
 
-  # Internal ALBs → Microservices
-  tg_product_arn   = module.alb_product.target_group_arn
-  tg_inventory_arn = module.alb_inventory.target_group_arn
-
-  # Internal DNS
-  dns_product   = module.alb_product.alb_dns_name
-  dns_inventory = module.alb_inventory.alb_dns_name
-
   # Images
   gateway_image   = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
   product_image   = "${module.ecr.repo_uris["product-service"]}:${var.env}-latest"
