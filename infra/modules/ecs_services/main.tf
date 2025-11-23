@@ -62,7 +62,7 @@ resource "aws_ecs_service" "dbcache" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = var.public_subnets_ids
+    subnets = [var.public_subnets_ids[0]]
     security_groups = [var.ecs_sg_id]
     assign_public_ip = true
   }
@@ -193,7 +193,7 @@ resource "aws_ecs_service" "gateway" {
   desired_count   = 1
 
   network_configuration {
-    subnets          = var.public_subnets_ids
+    subnets          = [var.public_subnets_ids[0]]
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
@@ -213,7 +213,7 @@ resource "aws_ecs_service" "product" {
   desired_count   = 1
 
   network_configuration {
-    subnets = var.public_subnets_ids
+    subnets = [var.public_subnets_ids[0]]
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
@@ -227,7 +227,7 @@ resource "aws_ecs_service" "inventory" {
   desired_count   = 1
 
   network_configuration {
-    subnets = var.public_subnets_ids
+    subnets = [var.public_subnets_ids[0]]
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
