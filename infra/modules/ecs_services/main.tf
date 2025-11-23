@@ -31,20 +31,10 @@ resource "aws_cloudwatch_log_group" "inventory" {
 #   retention_in_days = 3
 # }
 
-resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-}
-
-resource "aws_subnet" "private" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "${var.aws_region}a"
-}
-
 resource "aws_service_discovery_private_dns_namespace" "internal" {
   name        = "internal"
   description = "Private namespace"
-  vpc         = vpc.vpc_id
+  vpc         = var.vpc_id
 }
 
 # TASK DEFINITIONS (FARGATE)
