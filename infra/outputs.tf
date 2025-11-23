@@ -12,6 +12,17 @@ output "gateway_target_group_arn" {
   value       = module.alb_public.gateway_tg_arn
 }
 
+###############################################
+# ALBs INTERNOS
+###############################################
+
+output "product_alb_dns" {
+  value = module.alb_product.alb_dns_name
+}
+
+output "inventory_alb_dns" {
+  value = module.alb_inventory.alb_dns_name
+}
 
 ###############################################
 # ECS Cluster
