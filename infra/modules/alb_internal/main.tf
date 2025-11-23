@@ -59,10 +59,3 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-output "product_tg_arn" {
-  value = aws_lb_target_group.product.arn
-}
-
-output "inventory_tg_arn" {
-  value = aws_lb_target_group.inventory.arn
-}
