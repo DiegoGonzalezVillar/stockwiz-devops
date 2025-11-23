@@ -1,45 +1,58 @@
-output "vpc_id" {
-  description = "ID de la VPC del entorno"
-  value       = module.vpc.vpc_id
+###############################################
+# ALB PÚBLICO (API Gateway)
+###############################################
+
+output "alb_public_dns_name" {
+  description = "DNS público del ALB"
+  value       = module.alb_public.alb_dns_name
 }
 
-output "public_subnets_ids" {
-  description = "Subnets públicas donde se ubica el ALB"
-  value       = module.vpc.public_subnets_ids
+output "alb_public_arn" {
+  description = "ARN del ALB público"
+  value       = module.alb_public.alb_arn
 }
 
-output "private_subnets_ids" {
-  description = "Subnets privadas donde corren las tareas ECS"
-  value       = module.vpc.private_subnets_ids
+output "gateway_target_group_arn" {
+  description = "ARN del TG para api-gateway"
+  value       = module.alb_public.gateway_tg_arn
 }
 
-output "alb_dns_name" {
-  description = "DNS público del Application Load Balancer para acceder a la app"
-  value       = module.alb.alb_dns_name
+###############################################
+# ALBs INTERNOS
+###############################################
+
+output "product_alb_dns" {
+  value = module.alb_product.alb_dns_name
 }
 
-output "alb_arn" {
-  description = "ARN del Application Load Balancer"
-  value       = module.alb.alb_arn
+output "inventory_alb_dns" {
+  value = module.alb_inventory.alb_dns_name
 }
+
+output "dbcache_alb_dns" {
+  value = module.alb_dbcache.alb_dns_name
+}
+
+###############################################
+# ECS Cluster
+###############################################
 
 output "ecs_cluster_name" {
-  description = "Nombre del cluster ECS"
-  value       = aws_ecs_cluster.fargate.name
+  value = aws_ecs_cluster.fargate.name
 }
 
+###############################################
+# VPC Info
+###############################################
 
-output "alb_security_group_id" {
-  description = "Security Group asociado al ALB"
-  value       = module.vpc.alb_sg_id
+output "vpc_id" {
+  value = module.vpc.vpc_id
 }
 
-output "ecs_security_group_id" {
-  description = "Security Group usado por las instancias/tareas ECS"
-  value       = module.vpc.ecs_sg_id
+output "public_subnets" {
+  value = module.vpc.public_subnets_ids
 }
 
-output "ecr_repo_uris" {
-  description = "URIs de los repositorios ECR por servicio"
-  value       = module.ecr.repo_uris
+output "private_subnets" {
+  value = module.vpc.private_subnets_ids
 }
