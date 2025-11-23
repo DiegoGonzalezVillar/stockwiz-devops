@@ -59,13 +59,13 @@ jobs:
         working-directory: ./infra
         run: |
           terraform init -reconfigure \
-            -backend-config="../backend-config/dev.hcl"
+            -backend-config="backend-config/dev.hcl"
 
       - name: Terraform apply
         working-directory: ./infra
         run: |
           terraform apply -auto-approve \
-            -var-file="../env/dev.tfvars" \
+            -var-file="env/dev.tfvars" \
             -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
 
       ############################################
