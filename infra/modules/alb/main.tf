@@ -19,10 +19,12 @@ resource "aws_lb_target_group" "tg" {
 
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = aws_lb.app_lb.arn
-  port = 80
-  protocol="HTTP"
-  default_action { type="forward" target_group_arn=aws_lb_target_group.tg.arn }
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
+  }
 }
 
-output "alb_dns" { value = aws_lb.app_lb.dns_name }
-output "target_group_arn" { value = aws_lb_target_group.tg.arn }
