@@ -1,26 +1,7 @@
-variable "project_name" {
-  type = string
-}
-
-variable "env" {
-  type = string
-}
-
-variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-}
-
-variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
-}
-
-variable "ecr_repositories" {
-  type = list(string)
-}
-
-variable "gateway_port" {
-  type    = number
-  default = 8000
-}
+variable "project_name" {}
+variable "env" {}
+variable "aws_region" {}
+variable "aws_profile" { default = "default" }
+variable "vpc_cidr" {}
+variable "ecr_repositories" { type = list(string) }
+variable "account_id" {}
