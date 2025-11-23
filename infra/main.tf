@@ -59,16 +59,6 @@ module "alb_inventory" {
   port            = 8002
 }
 
-module "alb_dbcache" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-dbcache"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 6379
-}
-
 
 ##############################################
 # 5) ECS CLUSTER
@@ -102,12 +92,10 @@ module "ecs_services" {
   # Internal ALBs → Microservices
   tg_product_arn   = module.alb_product.target_group_arn
   tg_inventory_arn = module.alb_inventory.target_group_arn
-  tg_dbcache_arn   = module.alb_dbcache.target_group_arn
 
   # Internal DNS
   dns_product   = module.alb_product.alb_dns_name
   dns_inventory = module.alb_inventory.alb_dns_name
-  dns_dbcache   = module.alb_dbcache.alb_dns_name
 
   # Images
   gateway_image   = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"

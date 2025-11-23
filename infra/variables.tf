@@ -20,9 +20,6 @@ variable "ecr_repositories" {
   type = list(string)
 }
 
-##############################################
-# These go straight to the modules
-##############################################
 variable "gateway_port" {
   type    = number
   default = 8000
