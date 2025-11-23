@@ -104,7 +104,8 @@ resource "aws_ecs_task_definition" "gateway" {
       environment = [
   { name = "PRODUCT_SERVICE_URL",  value = "http://${var.dns_product}:8001" },
   { name = "INVENTORY_SERVICE_URL", value = "http://${var.dns_inventory}:8002" },
-  { name = "REDIS_URL", value = "redis://${var.dns_dbcache}:6379" }
+  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
+
 ]
 
 
@@ -165,7 +166,8 @@ resource "aws_ecs_task_definition" "product" {
 
      environment = [
   { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.dns_dbcache}:5432/microservices_db" },
-  { name = "REDIS_URL",     value = "redis://${var.dns_dbcache}:6379" }
+  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
+
 ]
 
 
@@ -226,7 +228,7 @@ resource "aws_ecs_task_definition" "inventory" {
 
       environment = [
   { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.dns_dbcache}:5432/microservices_db" },
-  { name = "REDIS_URL",     value = "redis://${var.dns_dbcache}:6379" }
+  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
 ]
 
 
