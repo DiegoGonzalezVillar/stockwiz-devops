@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 }
@@ -43,6 +43,3 @@ module "ecs" {
   env              = var.env
 }
 
-output "alb_dns" {
-  value = module.alb.alb_dns
-}

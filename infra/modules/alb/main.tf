@@ -11,7 +11,10 @@ resource "aws_lb_target_group" "tg" {
   protocol    = "HTTP"
   vpc_id      = aws_lb.app_lb.vpc_id
   target_type = "ip"
-  health_check { path="/"; matcher="200-399" }
+  health_check {
+  path    = "/"
+  matcher = "200-399"
+}
 }
 
 resource "aws_lb_listener" "listener" {
