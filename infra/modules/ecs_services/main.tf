@@ -93,8 +93,8 @@ resource "aws_ecs_task_definition" "gateway" {
 
   container_definitions = jsonencode([
     {
-      name  = "api-gateway"
-      image = var.gateway_image
+      name      = "api-gateway"
+      image     = var.gateway_image
       essential = true
 
       portMappings = [{
@@ -102,12 +102,10 @@ resource "aws_ecs_task_definition" "gateway" {
       }]
 
       environment = [
-  { name = "PRODUCT_SERVICE_URL",  value = "http://${var.dns_product}:8001" },
-  { name = "INVENTORY_SERVICE_URL", value = "http://${var.dns_inventory}:8002" },
-  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
-
-]
-
+        { name = "PRODUCT_SERVICE_URL",   value = "http://${var.dns_product}:8001" },
+        { name = "INVENTORY_SERVICE_URL", value = "http://${var.dns_inventory}:8002" },
+        { name = "REDIS_URL",             value = "redis://dbcache:6379" }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -120,6 +118,7 @@ resource "aws_ecs_task_definition" "gateway" {
     }
   ])
 }
+
 
 resource "aws_ecs_service" "gateway" {
   name            = "${var.environment}-api-gateway-svc"
@@ -156,20 +155,18 @@ resource "aws_ecs_task_definition" "product" {
 
   container_definitions = jsonencode([
     {
-      name  = "product"
-      image = var.product_image
+      name      = "product"
+      image     = var.product_image
       essential = true
 
       portMappings = [{
         containerPort = 8001
       }]
 
-     environment = [
-  { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
-  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
-
-]
-
+      environment = [
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -218,8 +215,8 @@ resource "aws_ecs_task_definition" "inventory" {
 
   container_definitions = jsonencode([
     {
-      name  = "inventory"
-      image = var.inventory_image
+      name      = "inventory"
+      image     = var.inventory_image
       essential = true
 
       portMappings = [{
@@ -227,10 +224,9 @@ resource "aws_ecs_task_definition" "inventory" {
       }]
 
       environment = [
-  { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
-  { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
-]
-
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -263,3 +259,4 @@ resource "aws_ecs_service" "inventory" {
     container_port   = 8002
   }
 }
+
