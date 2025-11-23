@@ -5,6 +5,7 @@ locals {
 # -------------------------
 # 1) ECR
 # -------------------------
+
 module "ecr" {
   source       = "./modules/ecr"
   name_prefix  = local.name_prefix
@@ -21,7 +22,7 @@ module "vpc" {
 }
 
 # -------------------------
-# 3) ALB PÚBLICO (API Gateway)
+# 3) ALB PÚBLICO (API Gateway)nuevo
 # -------------------------
 module "alb_public" {
   source             = "./modules/alb_public"
