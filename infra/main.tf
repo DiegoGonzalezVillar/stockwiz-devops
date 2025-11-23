@@ -35,30 +35,6 @@ module "alb_public" {
   gateway_port       = 8000
 }
 
-##############################################
-# 4) INTERNAL ALBs (una por microservicio interno)
-##############################################
-
-module "alb_product" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-product"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 8001
-}
-
-module "alb_inventory" {
-  source          = "./modules/alb_internal"
-  name            = "${var.env}-inventory"
-  environment     = var.env
-  sg_id           = module.vpc.ecs_sg_id
-  private_subnets = module.vpc.private_subnets_ids
-  vpc_id          = module.vpc.vpc_id
-  port            = 8002
-}
-
 
 ##############################################
 # 5) ECS CLUSTER
