@@ -1,3 +1,7 @@
+##############################################
+# PUBLIC ALB (API Gateway)
+##############################################
+
 resource "aws_lb" "this" {
   name               = "${var.environment}-alb-public"
   internal           = false
@@ -7,7 +11,6 @@ resource "aws_lb" "this" {
   subnets         = var.public_subnets_ids
 
   enable_deletion_protection = false
-  idle_timeout               = 60
 
   tags = {
     Name        = "${var.environment}-alb-public"
@@ -23,13 +26,18 @@ resource "aws_lb_target_group" "gateway" {
   target_type = "ip"
 
   health_check {
-    enabled           = true
-    path              = "/health"
-    matcher           = "200"
-    interval          = 30
-    timeout           = 5
-    healthy_threshold = 2
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
     unhealthy_threshold = 3
+  }
+
+  tags = {
+    Name        = "${var.environment}-gateway-tg"
+    Environment = var.environment
   }
 }
 

@@ -28,7 +28,7 @@ resource "aws_cloudwatch_log_group" "inventory" {
 # TASK DEFINITIONS
 ##############################################
 
-### DBCACHE (Postgres + Redis, sin ALB)
+### DBCACHE
 resource "aws_ecs_task_definition" "dbcache" {
   family                   = "dbcache-task"
   requires_compatibilities = ["FARGATE"]
@@ -41,28 +41,25 @@ resource "aws_ecs_task_definition" "dbcache" {
 
   container_definitions = jsonencode([
     {
-      name      = "postgres"
-      image     = "postgres:15-alpine"
+      name  = "postgres"
+      image = "postgres:15-alpine"
       essential = true
-
       environment = [
-        { name = "POSTGRES_USER",     value = "admin" },
+        { name = "POSTGRES_USER", value = "admin" },
         { name = "POSTGRES_PASSWORD", value = "admin123" },
-        { name = "POSTGRES_DB",       value = "microservices_db" }
+        { name = "POSTGRES_DB", value = "microservices_db" }
       ]
-
-      portMappings = [
-        { containerPort = 5432 }
-      ]
+      portMappings = [{
+        containerPort = 5432
+      }]
     },
     {
-      name      = "redis"
-      image     = "redis:7-alpine"
+      name  = "redis"
+      image = "redis:7-alpine"
       essential = true
-
-      portMappings = [
-        { containerPort = 6379 }
-      ]
+      portMappings = [{
+        containerPort = 6379
+      }]
     }
   ])
 }
@@ -81,9 +78,8 @@ resource "aws_ecs_service" "dbcache" {
   }
 }
 
-
 ##############################################
-# GATEWAY — detrás del ALB público
+# GATEWAY (detrás del ALB público)
 ##############################################
 
 resource "aws_ecs_task_definition" "gateway" {
@@ -92,35 +88,35 @@ resource "aws_ecs_task_definition" "gateway" {
   memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = data.aws_iam_role.lab_role.arn
+  task_role_arn            = data.aws_iam_role.lab_role.arn
 
-  execution_role_arn = data.aws_iam_role.lab_role.arn
-  task_role_arn      = data.aws_iam_role.lab_role.arn
+  container_definitions = jsonencode([
+    {
+      name  = "api-gateway"
+      image = var.gateway_image
+      essential = true
 
-  container_definitions = jsonencode([{
-    name      = "api-gateway"
-    image     = var.gateway_image
-    essential = true
+      portMappings = [{
+        containerPort = 8000
+      }]
 
-    portMappings = [{
-      containerPort = 8000
-      protocol      = "tcp"
-    }]
+      environment = [
+        { name = "PRODUCT_SERVICE_URL",  value = var.dns_product },
+        { name = "INVENTORY_SERVICE_URL", value = var.dns_inventory },
+        { name = "REDIS_URL", value = "redis://dbcache:6379" }
+      ]
 
-    environment = [
-      { name = "PRODUCT_SERVICE_URL",  value = "http://product:8001" },
-      { name = "INVENTORY_SERVICE_URL", value = "http://inventory:8002" },
-      { name = "REDIS_URL", value = "redis://dbcache:6379" }
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.gateway.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.gateway.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
       }
     }
-  }])
+  ])
 }
 
 resource "aws_ecs_service" "gateway" {
@@ -143,9 +139,8 @@ resource "aws_ecs_service" "gateway" {
   }
 }
 
-
 ##############################################
-# PRODUCT SERVICE — detrás de ALB interno
+# PRODUCT (ALB interno)
 ##############################################
 
 resource "aws_ecs_task_definition" "product" {
@@ -154,34 +149,34 @@ resource "aws_ecs_task_definition" "product" {
   memory                   = "1024"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = data.aws_iam_role.lab_role.arn
+  task_role_arn            = data.aws_iam_role.lab_role.arn
 
-  execution_role_arn = data.aws_iam_role.lab_role.arn
-  task_role_arn      = data.aws_iam_role.lab_role.arn
+  container_definitions = jsonencode([
+    {
+      name  = "product"
+      image = var.product_image
+      essential = true
 
-  container_definitions = jsonencode([{
-    name      = "product"
-    image     = var.product_image
-    essential = true
+      portMappings = [{
+        containerPort = 8001
+      }]
 
-    portMappings = [{
-      containerPort = 8001
-      protocol      = "tcp"
-    }]
+      environment = [
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
+      ]
 
-    environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
-      { name = "REDIS_URL",     value = "redis://dbcache:6379" }
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.product.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.product.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
       }
     }
-  }])
+  ])
 }
 
 resource "aws_ecs_service" "product" {
@@ -198,16 +193,14 @@ resource "aws_ecs_service" "product" {
   }
 
   load_balancer {
-    target_group_arn = var.product_tg_arn
+    target_group_arn = var.tg_product_arn
     container_name   = "product"
     container_port   = 8001
   }
 }
 
-
-
 ##############################################
-# INVENTORY SERVICE — detrás de ALB interno
+# INVENTORY (ALB interno)
 ##############################################
 
 resource "aws_ecs_task_definition" "inventory" {
@@ -216,34 +209,34 @@ resource "aws_ecs_task_definition" "inventory" {
   memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = data.aws_iam_role.lab_role.arn
+  task_role_arn            = data.aws_iam_role.lab_role.arn
 
-  execution_role_arn = data.aws_iam_role.lab_role.arn
-  task_role_arn      = data.aws_iam_role.lab_role.arn
+  container_definitions = jsonencode([
+    {
+      name  = "inventory"
+      image = var.inventory_image
+      essential = true
 
-  container_definitions = jsonencode([{
-    name      = "inventory"
-    image     = var.inventory_image
-    essential = true
+      portMappings = [{
+        containerPort = 8002
+      }]
 
-    portMappings = [{
-      containerPort = 8002
-      protocol      = "tcp"
-    }]
+      environment = [
+        { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
+        { name = "REDIS_URL",     value = "redis://dbcache:6379" }
+      ]
 
-    environment = [
-      { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
-      { name = "REDIS_URL",     value = "redis://dbcache:6379" }
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.inventory.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.inventory.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
       }
     }
-  }])
+  ])
 }
 
 resource "aws_ecs_service" "inventory" {
@@ -260,9 +253,8 @@ resource "aws_ecs_service" "inventory" {
   }
 
   load_balancer {
-    target_group_arn = var.inventory_tg_arn
+    target_group_arn = var.tg_inventory_arn
     container_name   = "inventory"
     container_port   = 8002
   }
 }
-
