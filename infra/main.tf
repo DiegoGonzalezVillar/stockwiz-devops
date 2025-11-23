@@ -57,18 +57,26 @@ resource "aws_ecs_cluster" "fargate" {
 module "ecs_services" {
   source              = "./modules/ecs_services"
   environment         = var.env
-  cluster_name        = aws_ecs_cluster.fargate.name
+  cluster_name        = "ecs-fargate-cluster-${var.env}"
 
   public_subnets_ids  = module.vpc.public_subnets_ids
   private_subnets_ids = module.vpc.private_subnets_ids
   ecs_sg_id           = module.vpc.ecs_sg_id
   vpc_id              = module.vpc.vpc_id
 
-  gateway_tg_arn    = module.alb_public.gateway_tg_arn
-  product_tg_arn    = module.alb_internal.product_tg_arn
-  inventory_tg_arn  = module.alb_internal.inventory_tg_arn
+  gateway_tg_arn      = module.alb_public.gateway_tg_arn
 
-  gateway_image      = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
-  product_image      = "${module.ecr.repo_uris["product-service"]}:${var.env}-latest"
-  inventory_image    = "${module.ecr.repo_uris["inventory-service"]}:${var.env}-latest"
+  tg_product_arn      = module.alb_product.target_group_arn
+  tg_inventory_arn    = module.alb_inventory.target_group_arn
+  tg_dbcache_arn      = module.alb_dbcache.target_group_arn
+
+  gateway_image       = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
+  product_image       = "${module.ecr.repo_uris["product-service"]}:${var.env}-latest"
+  inventory_image     = "${module.ecr.repo_uris["inventory-service"]}:${var.env}-latest"
+
+  dns_product   = module.alb_product.alb_dns_name
+  dns_inventory = module.alb_inventory.alb_dns_name
+  dns_dbcache   = module.alb_dbcache.alb_dns_name
+
+  aws_region = var.aws_region  
 }
