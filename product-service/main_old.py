@@ -174,7 +174,7 @@ async def update_product(
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     
-    updates.append(f"updated_at = CURRENT_TIMESTAMP")
+    updates.append("updated_at = CURRENT_TIMESTAMP")
     values.append(product_id)
     
     query = f"""

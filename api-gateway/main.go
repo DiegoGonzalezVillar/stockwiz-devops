@@ -74,9 +74,12 @@ func main() {
 		MinIdleConns: 2,
 	})
 
-	// Verificar conexión a Redis
+	// Verificar conexión a Redis (pero NO fallar si no existe)
 	if err := redisClient.Ping(ctx).Err(); err != nil {
-		log.Fatal("Error connecting to Redis:", err)
+		log.Println("⚠️ Redis not available, running without cache:", err)
+		redisClient = nil // Deshabilitar cache
+	} else {
+		log.Println("✅ Connected to Redis")
 	}
 
 	// Configurar HTTP client con timeout y pool

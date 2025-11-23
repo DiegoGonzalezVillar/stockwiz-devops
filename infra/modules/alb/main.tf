@@ -1,6 +1,5 @@
-#####################################
+
 # Application Load Balancer
-#####################################
 
 resource "aws_lb" "this" {
   name               = "${var.environment}-alb"
@@ -19,9 +18,7 @@ resource "aws_lb" "this" {
   }
 }
 
-#####################################
 # Target Group para el api-gateway
-#####################################
 
 resource "aws_lb_target_group" "gateway" {
   name        = "${var.environment}-gateway-tg"
@@ -46,9 +43,7 @@ resource "aws_lb_target_group" "gateway" {
   }
 }
 
-#####################################
 # Listener HTTP 80
-#####################################
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
