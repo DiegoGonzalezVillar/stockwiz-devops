@@ -6,9 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  ###########################################################
-  # 1) DEV: Build + Tests + Push ECR dev + Terraform dev + ECS dev
-  ###########################################################
   dev:
     runs-on: ubuntu-latest
     env:
@@ -29,7 +26,7 @@ jobs:
         run: |
           pipx install flake8
           flake8 product-service || true
-
+          
           (cd api-gateway && go vet ./... || true)
           (cd inventory-service && go vet ./... || true)
 
@@ -37,9 +34,7 @@ jobs:
         run: |
           docker compose up -d
           sleep 20
-          docker compose ps
 
-          set -e
           curl -fsS http://localhost:8000/health
           curl -fsS http://localhost:8001/health
           curl -fsS http://localhost:8002/health
@@ -57,25 +52,25 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # ---------------------------------------------------------
-      # FIX 1: Terraform primero (Crea ECR repos y S3 backend)
-      # ---------------------------------------------------------
+      ############################################
+      # TERRAFORM (crea VPC, ECS, ALB, ECR, etc.)
+      ############################################
       - name: Terraform init (Dev)
         working-directory: ./infra
         run: |
           terraform init -reconfigure \
-            -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=${ENV}/terraform.tfstate" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="encrypt=true"
+            -backend-config="../backend-config/dev.hcl"
 
-      - name: Terraform apply (Dev infra resources)
+      - name: Terraform apply
         working-directory: ./infra
-        run: terraform apply -auto-approve -var-file=env/dev.tfvars
+        run: |
+          terraform apply -auto-approve \
+            -var-file="../env/dev.tfvars" \
+            -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
 
-      # ---------------------------------------------------------
-      # Ahora que ECR YA EXISTE, recién hacemos push de imágenes
-      # ---------------------------------------------------------
+      ############################################
+      # BUILD & PUSH de imágenes (incluye Postgres)
+      ############################################
       - name: Login to ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -84,6 +79,9 @@ jobs:
         run: |
           set -e
           REG="${{ steps.ecr.outputs.registry }}"
+
+          docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
+          docker push  $REG/stockwiz-dev/postgres:dev-latest
 
           docker build -t $REG/stockwiz-dev/api-gateway:dev-latest ./api-gateway
           docker push  $REG/stockwiz-dev/api-gateway:dev-latest
@@ -94,6 +92,9 @@ jobs:
           docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
+      ############################################
+      # DESPLIEGUE ECS
+      ############################################
       - name: Deploy ECS (Dev)
         run: |
           aws ecs update-service \
@@ -110,6 +111,7 @@ jobs:
             --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
+
 
   ###########################################################
   # 2) TEST
