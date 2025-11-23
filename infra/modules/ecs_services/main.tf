@@ -165,7 +165,7 @@ resource "aws_ecs_task_definition" "product" {
       }]
 
      environment = [
-  { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.dns_dbcache}:5432/microservices_db" },
+  { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
   { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
 
 ]
@@ -227,7 +227,7 @@ resource "aws_ecs_task_definition" "inventory" {
       }]
 
       environment = [
-  { name = "DATABASE_URL", value = "postgresql://admin:admin123@${var.dns_dbcache}:5432/microservices_db" },
+  { name = "DATABASE_URL", value = "postgresql://admin:admin123@dbcache:5432/microservices_db" },
   { name = "REDIS_URL", value = "${var.dns_dbcache}:6379" }
 ]
 

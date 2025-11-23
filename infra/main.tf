@@ -66,8 +66,9 @@ module "alb_dbcache" {
   sg_id           = module.vpc.ecs_sg_id
   private_subnets = module.vpc.private_subnets_ids
   vpc_id          = module.vpc.vpc_id
-  port            = 5432
+  port            = 6379
 }
+
 
 ##############################################
 # 5) ECS CLUSTER
