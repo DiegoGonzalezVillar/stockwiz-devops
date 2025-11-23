@@ -92,7 +92,6 @@ module "ecs_services" {
   # Internal DNS
   dns_product   = module.alb_product.alb_dns_name
   dns_inventory = module.alb_inventory.alb_dns_name
-  dns_dbcache   = "dbcache"  # Internal ECS hostname for dbcontainer
 
   # Images
   gateway_image   = "${module.ecr.repo_uris["api-gateway"]}:${var.env}-latest"
