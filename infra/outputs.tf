@@ -7,13 +7,8 @@ output "alb_public_dns_name" {
   value       = module.alb_public.alb_dns_name
 }
 
-output "alb_public_arn" {
-  description = "ARN del ALB público"
-  value       = module.alb_public.alb_arn
-}
-
 output "gateway_target_group_arn" {
-  description = "ARN del TG para api-gateway"
+  description = "ARN del Target Group del API Gateway"
   value       = module.alb_public.gateway_tg_arn
 }
 

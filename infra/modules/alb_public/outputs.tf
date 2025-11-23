@@ -1,7 +1,8 @@
-output "alb_public_dns_name" {
-  value = module.alb_public.alb_dns_name
+output "alb_dns_name" {
+  value = aws_lb.this.dns_name
 }
 
-output "alb_public_gateway_tg_arn" {
-  value = module.alb_public.gateway_tg_arn
+output "gateway_tg_arn" {
+  value = aws_lb_target_group.gateway.arn
 }
+
