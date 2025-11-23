@@ -44,7 +44,7 @@ resource "aws_subnet" "private" {
 resource "aws_service_discovery_private_dns_namespace" "internal" {
   name        = "internal"
   description = "Private namespace"
-  vpc         = module.vpc_id
+  vpc         = vpc.vpc_id
 }
 
 # TASK DEFINITIONS (FARGATE)
@@ -268,7 +268,7 @@ resource "aws_ecs_service" "inventory" {
   desired_count   = 1
 
   network_configuration {
-    subnets          = var.private_subnets_ids
+    subnets          = var.public_subnets_ids
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = false
   }
