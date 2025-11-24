@@ -3,27 +3,33 @@ resource "aws_ecs_cluster" "cluster" {
 }
 
 resource "aws_ecs_task_definition" "api" {
-  family                = "api-${var.env}"
+  family                   = "api-${var.env}"
   requires_compatibilities = ["FARGATE"]
-  cpu                   = "512"
-  memory                = "1024"
-  network_mode          = "awsvpc"
+  cpu                      = "512"
+  memory                   = "1024"
+  network_mode             = "awsvpc"
 
   container_definitions = jsonencode([
     {
-      name      = "api_gateway"
-      image     = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.project_name}-${var.env}/api-gateway"
-      portMappings = [{ containerPort = 8000 }]
+      name  = "api_gateway"
+      image = "api-gateway"      
+      portMappings = [
+        { containerPort = 8000 }
+      ]
     },
     {
-      name      = "postgres"
-      image     = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.project_name}-${var.env}/postgres"
-      portMappings = [{ containerPort = 5432 }]
+      name  = "postgres"
+      image = "postgres"         
+      portMappings = [
+        { containerPort = 5432 }
+      ]
     },
     {
-      name      = "redis"
-      image     = "redis:7-alpine"
-      portMappings = [{ containerPort = 6379 }]
+      name  = "redis"
+      image = "redis:7-alpine"     # imagen oficial pública
+      portMappings = [
+        { containerPort = 6379 }
+      ]
     }
   ])
 }
@@ -37,9 +43,11 @@ resource "aws_ecs_task_definition" "product" {
 
   container_definitions = jsonencode([
     {
-      name      = "product_service"
-      image     = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.project_name}-${var.env}/product-service"
-      portMappings = [{ containerPort = 8001 }]
+      name  = "product_service"
+      image = "product-service"  
+      portMappings = [
+        { containerPort = 8001 }
+      ]
     }
   ])
 }
@@ -53,9 +61,11 @@ resource "aws_ecs_task_definition" "inventory" {
 
   container_definitions = jsonencode([
     {
-      name      = "inventory_service"
-      image     = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.project_name}-${var.env}/inventory-service"
-      portMappings = [{ containerPort = 8002 }]
+      name  = "inventory_service"
+      image = "inventory-service"  
+      portMappings = [
+        { containerPort = 8002 }
+      ]
     }
   ])
 }
@@ -107,4 +117,3 @@ resource "aws_ecs_service" "inventory" {
     assign_public_ip = true
   }
 }
-
