@@ -42,7 +42,7 @@ module "ecs" {
   target_group_arn = module.alb.target_group_arn
   project_name     = var.project_name
   env              = var.env
-
+  enabled = var.enabled
   api_image        = var.api_image
   product_image    = var.product_image
   inventory_image  = var.inventory_image

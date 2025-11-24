@@ -3,6 +3,9 @@ variable "env" {}
 variable "aws_region" {}
 variable "vpc_cidr" {}
 variable "ecr_repositories" { type = list(string) }
+variable "enabled" {
+  type = bool
+}
 
 variable "api_image" {}
 variable "product_image" {}
