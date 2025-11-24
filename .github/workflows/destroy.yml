@@ -19,23 +19,33 @@ on:
 env:
   AWS_REGION: us-east-1
   PROJECT: stockwiz
+  TF_BUCKET: stockwiz-tfstate
 
 jobs:
   purge:
     runs-on: ubuntu-latest
 
     steps:
+    ############################################################
+    # VALIDATE INPUT
+    ############################################################
     - name: Validate confirmation
       run: |
         if [ "${{ github.event.inputs.confirm }}" != "PURGE" ]; then
-          echo "Purge cancelled."
+          echo "PURGE cancelled."
           exit 1
         fi
 
-    - name: Checkout
+    ############################################################
+    # CHECKOUT
+    ############################################################
+    - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Configure AWS credentials (REFRESH)
+    ############################################################
+    # REFRESH AWS TOKEN
+    ############################################################
+    - name: Configure AWS credentials (REFRESH TOKEN)
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -43,15 +53,33 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ env.AWS_REGION }}
 
-    #################################################################
+    ############################################################
+    # SETUP TERRAFORM (FIX)
+    ############################################################
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    ############################################################
+    # TERRAFORM INIT (JUST TO SYNC BACKEND)
+    ############################################################
+    - name: Terraform Init
+      working-directory: ./infra
+      run: |
+        terraform init -reconfigure \
+          -backend-config="bucket=${TF_BUCKET}" \
+          -backend-config="key=${{ github.event.inputs.env }}/terraform.tfstate" \
+          -backend-config="region=${AWS_REGION}" \
+          -backend-config="encrypt=true"
+
+    ############################################################
     # DELETE ECS SERVICES
-    #################################################################
+    ############################################################
     - name: Delete ECS Services
       run: |
         ENV="${{ github.event.inputs.env }}"
         CLUSTER="ecs-fargate-cluster-$ENV"
-        echo "Deleting services in $CLUSTER"
 
+        echo "Deleting services in $CLUSTER..."
         SERVICES=$(aws ecs list-services --cluster $CLUSTER --query "serviceArns[]" --output text || true)
 
         for SVC in $SERVICES; do
@@ -59,9 +87,9 @@ jobs:
           aws ecs delete-service --cluster $CLUSTER --service $SVC --force || true
         done
 
-    #################################################################
+    ############################################################
     # DELETE ECS CLUSTER
-    #################################################################
+    ############################################################
     - name: Delete ECS Cluster
       run: |
         ENV="${{ github.event.inputs.env }}"
@@ -70,120 +98,114 @@ jobs:
         echo "Deleting ECS Cluster: $CLUSTER"
         aws ecs delete-cluster --cluster $CLUSTER || true
 
-    #################################################################
+    ############################################################
     # DELETE TARGET GROUPS
-    #################################################################
+    ############################################################
     - name: Delete Target Groups
       run: |
         ENV="${{ github.event.inputs.env }}"
-        TG_LIST=$(aws elbv2 describe-target-groups \
-          --query "TargetGroups[?contains(TargetGroupName, '$ENV')].TargetGroupArn" \
+        echo "Deleting target groups for $ENV..."
+        TG_ARNS=$(aws elbv2 describe-target-groups \
+          --query "TargetGroups[?contains(TargetGroupName,'$ENV')].TargetGroupArn" \
           --output text || true)
 
-        for TG in $TG_LIST; do
-          echo "Deleting Target Group: $TG"
+        for TG in $TG_ARNS; do
           aws elbv2 delete-target-group --target-group-arn $TG || true
         done
 
-    #################################################################
-    # DELETE LOAD BALANCERS
-    #################################################################
-    - name: Delete ALBs
+    ############################################################
+    # DELETE ALBs
+    ############################################################
+    - name: Delete Load Balancers
       run: |
         ENV="${{ github.event.inputs.env }}"
+        echo "Deleting ALBs for $ENV..."
+
         LBS=$(aws elbv2 describe-load-balancers \
-          --query "LoadBalancers[?contains(LoadBalancerName, '$ENV')].LoadBalancerArn" \
+          --query "LoadBalancers[?contains(LoadBalancerName,'$ENV')].LoadBalancerArn" \
           --output text || true)
 
         for LB in $LBS; do
-          echo "Deleting ALB: $LB"
           aws elbv2 delete-load-balancer --load-balancer-arn $LB || true
         done
 
-    #################################################################
+    ############################################################
     # DELETE ECR REPOSITORIES
-    #################################################################
-    - name: Delete ECR repositories
+    ############################################################
+    - name: Delete ECR Repositories
       run: |
         ENV="${{ github.event.inputs.env }}"
         PREFIX="${PROJECT}-${ENV}"
 
-        echo "Deleting ECR repos with prefix: $PREFIX"
+        echo "Deleting repos starting with: $PREFIX"
 
         REPOS=$(aws ecr describe-repositories \
-          --query "repositories[?starts_with(repositoryName, '$PREFIX')].repositoryName" \
+          --query "repositories[?starts_with(repositoryName,'$PREFIX')].repositoryName" \
           --output text || true)
 
         for R in $REPOS; do
-          echo "Deleting ECR repo: $R"
           aws ecr delete-repository --repository-name $R --force || true
         done
 
-    #################################################################
-    # DELETE VPC + SUBNETS + IGW + ROUTES (full cleanup)
-    #################################################################
+    ############################################################
+    # DELETE VPC + SUBNETS + IGW + ROUTES + SG
+    ############################################################
     - name: Delete VPC Resources
       run: |
         ENV="${{ github.event.inputs.env }}"
         VPC_ID=$(aws ec2 describe-vpcs \
           --filters "Name=tag:Name,Values=stockwiz-$ENV-vpc" \
-          --query "Vpcs[0].VpcId" \
-          --output text || true)
+          --query "Vpcs[0].VpcId" --output text || true)
 
-        if [ "$VPC_ID" == "None" ] || [ -z "$VPC_ID" ]; then
-          echo "No VPC found"
+        if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
+          echo "VPC not found."
           exit 0
         fi
 
-        echo "Purging VPC $VPC_ID"
+        echo "Purging VPC: $VPC_ID"
 
-        # Delete subnets
+        # Subnets
         SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
           --query "Subnets[*].SubnetId" --output text)
 
         for S in $SUBNETS; do
-          echo "Deleting Subnet: $S"
           aws ec2 delete-subnet --subnet-id $S || true
         done
 
-        # Delete route tables
+        # Route tables
         RTB=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" \
           --query "RouteTables[*].RouteTableId" --output text)
 
         for R in $RTB; do
-          echo "Deleting Route Table: $R"
           aws ec2 delete-route-table --route-table-id $R || true
         done
 
-        # Delete internet gateway
+        # Internet Gateways
         IGW=$(aws ec2 describe-internet-gateways \
           --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
           --query "InternetGateways[0].InternetGatewayId" --output text)
 
         if [ "$IGW" != "None" ]; then
-          echo "Deleting IGW: $IGW"
           aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $VPC_ID || true
           aws ec2 delete-internet-gateway --internet-gateway-id $IGW || true
         fi
 
-        # Delete security groups
+        # Security Groups
         SGS=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" \
           --query "SecurityGroups[*].GroupId" --output text)
 
         for SG in $SGS; do
           if [[ "$SG" != *"default"* ]]; then
-            echo "Deleting SG: $SG"
             aws ec2 delete-security-group --group-id $SG || true
           fi
         done
 
         # Delete VPC
-        echo "Deleting VPC: $VPC_ID"
         aws ec2 delete-vpc --vpc-id $VPC_ID || true
 
-    #################################################################
-    # FINAL: TERRAFORM DESTROY (clean state only)
-    #################################################################
+    ############################################################
+    # TERRAFORM DESTROY (JUST TO CLEAN BACKEND)
+    ############################################################
     - name: Terraform Destroy
       working-directory: ./infra
       run: |
@@ -194,5 +216,5 @@ jobs:
           -var="inventory_image=placeholder" \
           -var="postgres_image=placeholder"
 
-    - name: Purge finished
-      run: echo "Environment ${{ github.event.inputs.env }} purged successfully."
+    - name: Purge done
+      run: echo "Environment ${{ github.event.inputs.env }} fully purged."
