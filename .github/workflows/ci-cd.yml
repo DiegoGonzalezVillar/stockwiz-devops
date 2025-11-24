@@ -1,4 +1,4 @@
-name: CI-CD Multi Env
+name: CI-CD Multi Env (EC2)
 
 on:
   push:
@@ -13,38 +13,10 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
-      ###########################################################
-      # CHECKOUT + DOCKER COMPOSE BUILD + TESTS
-      ###########################################################
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Docker Compose build (Dev)
-        run: docker compose build
-
-      - name: Static checks (lint)
-        run: |
-          pipx install flake8
-          flake8 product-service || true
-          (cd api-gateway && go vet ./... || true)
-          (cd inventory-service && go vet ./... || true)
-
-      - name: Run integration tests
-        run: |
-          docker compose up -d
-          sleep 20
-          curl -fsS http://localhost:8000/health
-          curl -fsS http://localhost:8001/health
-          curl -fsS http://localhost:8002/health
-          docker compose down -v
-
-      ###########################################################
-      # CONFIGURAR AWS (TOKEN 1)
-      ###########################################################
-      - name: Configure AWS credentials (Dev - Initial Login)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -52,47 +24,35 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      ###########################################################
-      # TERRAFORM INIT + APPLY (1) — PLACEHOLDERS
-      ###########################################################
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform init (Dev)
-        working-directory: ./infra
-        run: terraform init -reconfigure -backend-config="backend-config/dev.hcl"
-
-      - name: Terraform apply infra (crear ECR antes del push)
+      ################################################
+      # TERRAFORM INIT + APPLY
+      ################################################
+      - name: Terraform init
         working-directory: ./infra
         run: |
-          terraform apply -auto-approve \
-            -var-file=env/dev.tfvars \
-            -var="enabled=false" \
-            -var="api_image=placeholder" \
-            -var="product_image=placeholder" \
-            -var="inventory_image=placeholder" \
-            -var="postgres_image=placeholder"
+          terraform init -reconfigure \
+            -backend-config="bucket=stockwiz-tfstate" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="encrypt=true"
 
+      - name: Terraform apply (create VPC, ALB, ECS, EC2, ECR)
+        working-directory: ./infra
+        run: terraform apply -auto-approve -var-file="env/dev.tfvars"
 
-      ###########################################################
-      # LOGIN A ECR
-      ###########################################################
-      - name: Login to ECR
+      ################################################
+      # BUILD + PUSH DOCKER IMAGES
+      ################################################
+      - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      ###########################################################
-      # BUILD + PUSH IMÁGENES
-      ###########################################################
-      - name: Build & Push images to ECR (dev-latest)
-        working-directory: ${{ github.workspace }}
+      - name: Build & Push Docker images
         run: |
-          set -e
           REG="${{ steps.ecr.outputs.registry }}"
-          echo "Using registry: $REG"
-
-          docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
-          docker push  $REG/stockwiz-dev/postgres:dev-latest
 
           docker build -t $REG/stockwiz-dev/api-gateway:dev-latest ./api-gateway
           docker push  $REG/stockwiz-dev/api-gateway:dev-latest
@@ -103,48 +63,16 @@ jobs:
           docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
-      ###########################################################
-      # FIX EXPIRING TOKEN — RE-AUTENTICAR AWS
-      ###########################################################
-      - name: Reconfigure AWS credentials (Dev - Token Refresh)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
+          docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
+          docker push  $REG/stockwiz-dev/postgres:dev-latest
 
-      ###########################################################
-      # TERRAFORM APPLY (2) — CON IMÁGENES REALES
-      ###########################################################
-      - name: Terraform apply with images
-        working-directory: ./infra
-        run: |
-          terraform apply -auto-approve \
-            -var-file="env/dev.tfvars" \
-            -var="enabled=true" \
-            -var="api_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/api-gateway:dev-latest" \
-            -var="product_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/product-service:dev-latest" \
-            -var="inventory_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/inventory-service:dev-latest" \
-            -var="postgres_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/postgres:dev-latest"
-
-
-      ###########################################################
-      # ECS UPDATE SERVICES
-      ###########################################################
-      - name: Deploy ECS (Dev)
+      ################################################
+      # UPDATE ECS SERVICE
+      ################################################
+      - name: Update ECS service
         run: |
           aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-api-gateway-svc \
+            --cluster stockwiz-dev-cluster \
+            --service stockwiz-dev-svc \
             --force-new-deployment
 
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-product-service-svc \
-            --force-new-deployment
-
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-inventory-service-svc \
-            --force-new-deployment
