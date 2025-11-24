@@ -12,14 +12,12 @@ jobs:
     #############################################
     # CHECKOUT
     #############################################
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     #############################################
     # AWS CREDENTIALS
     #############################################
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+    - uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -29,8 +27,7 @@ jobs:
     #############################################
     # TERRAFORM INIT
     #############################################
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+    - uses: hashicorp/setup-terraform@v3
 
     - name: Terraform init
       working-directory: ./infra
@@ -42,9 +39,16 @@ jobs:
           -backend-config="encrypt=true"
 
     #############################################
-    # ECR LOGIN
+    # TERRAFORM APPLY #1 — CREAR ECR + VPC + ALB + ECS vacío
     #############################################
-    - name: Login to ECR
+    - name: Terraform apply infra (ECR, VPC, ALB, ECS base)
+      working-directory: ./infra
+      run: terraform apply -auto-approve -var-file="env/dev.tfvars"
+
+    #############################################
+    # LOGIN ECR
+    #############################################
+    - name: Login ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
 
@@ -55,14 +59,11 @@ jobs:
       run: |
         REG="${{ steps.ecr.outputs.registry }}"
         
-        # Build
         docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
-
-        # Push
-        docker push $REG/stockwiz-dev/fullstack:dev-latest
+        docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
     #############################################
-    # TERRAFORM APPLY (CON IMAGEN REAL)
+    # TERRAFORM APPLY #2 — CREAR TASK DEFINITION CON LA IMAGEN
     #############################################
     - name: Terraform apply with image
       working-directory: ./infra
@@ -71,7 +72,7 @@ jobs:
         -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
 
     #############################################
-    # ECS DEPLOY
+    # UPDATE ECS SERVICE
     #############################################
     - name: Update ECS service
       run: |
