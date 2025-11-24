@@ -13,18 +13,12 @@ provider "aws" {
   region  = var.aws_region
 }
 
-############################################################
-# NETWORK
-############################################################
 module "network" {
   source     = "./modules/network"
   vpc_cidr   = var.vpc_cidr
   aws_region = var.aws_region
 }
 
-############################################################
-# ALB
-############################################################
 module "alb" {
   source         = "./modules/alb"
   public_subnets = module.network.public_subnets
@@ -33,31 +27,21 @@ module "alb" {
   env            = var.env
 }
 
-############################################################
-# ECR (repos)
-############################################################
 module "ecr" {
   source       = "./modules/ecr"
   name_prefix  = "${var.project_name}-${var.env}"
   repositories = var.ecr_repositories
 }
 
-############################################################
-# ECS EC2 CLUSTER + SERVICES
-############################################################
-module "ecs_ec2" {
-  source = "./modules/ecs-ec2"
+module "ecs" {
+  source = "./modules/ecs-fargate-single"
 
-  project_name          = var.project_name
-  env                   = var.env
-  public_subnets        = module.network.public_subnets
-  vpc_id                = module.network.vpc_id
-  ecs_sg_id             = module.network.ecs_sg_id
-  alb_target_group_arn  = module.alb.target_group_arn
+  project_name         = var.project_name
+  env                  = var.env
+  public_subnets       = module.network.public_subnets
+  ecs_sg_id            = module.network.ecs_sg_id
+  alb_target_group_arn = module.alb.target_group_arn
 
-  # container images (from workflow)
-  api_image        = var.api_image
-  postgres_image   = var.postgres_image
-  redis_image      = var.redis_image
+  full_image = var.full_image
 }
 

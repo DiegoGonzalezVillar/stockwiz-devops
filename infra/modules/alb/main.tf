@@ -1,11 +1,3 @@
-variable "public_subnets" {
-  type = list(string)
-}
-
-variable "alb_sg_id" {}
-variable "project_name" {}
-variable "env" {}
-
 resource "aws_lb" "app_lb" {
   name               = "${var.project_name}-${var.env}-alb"
   load_balancer_type = "application"
