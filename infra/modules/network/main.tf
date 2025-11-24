@@ -1,17 +1,41 @@
-variable "vpc_cidr" { type = string }
-variable "aws_region" { type = string }
-
 resource "aws_vpc" "main" {
-  cidr_block = var.vpc_cidr
+  cidr_block           = var.vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name = "stockwiz-${terraform.workspace}-vpc"
+  }
 }
 
-# Internet Gateway (Necesario para ALB + ECS con IP pública)
+# -------------------------------------------------
+# PUBLIC SUBNETS (2 AZ required for ALB/ECS)
+# -------------------------------------------------
+resource "aws_subnet" "public_subnet" {
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 4, count.index)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "stockwiz-${terraform.workspace}-public-${count.index}"
+  }
+}
+
+data "aws_availability_zones" "available" {}
+
+# -------------------------------------------------
+# INTERNET GATEWAY
+# -------------------------------------------------
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 }
 
-# Public Route Table
-resource "aws_route_table" "public_rt" {
+# -------------------------------------------------
+# PUBLIC ROUTE TABLE
+# -------------------------------------------------
+resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
@@ -20,53 +44,19 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
-# Subnet 1
-resource "aws_subnet" "public_1" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, 1)
-  availability_zone = "${var.aws_region}a"
-  map_public_ip_on_launch = true
+resource "aws_route_table_association" "public_assoc" {
+  count          = length(aws_subnet.public_subnet)
+  subnet_id      = aws_subnet.public_subnet[count.index].id
+  route_table_id = aws_route_table.public.id
 }
 
-# Subnet 2
-resource "aws_subnet" "public_2" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, 2)
-  availability_zone = "${var.aws_region}b"
-  map_public_ip_on_launch = true
-}
-
-# Associate subnets to the public route table
-resource "aws_route_table_association" "public_1_assoc" {
-  subnet_id      = aws_subnet.public_1.id
-  route_table_id = aws_route_table.public_rt.id
-}
-
-resource "aws_route_table_association" "public_2_assoc" {
-  subnet_id      = aws_subnet.public_2.id
-  route_table_id = aws_route_table.public_rt.id
-}
-
-resource "aws_security_group" "ecs_sg" {
-  vpc_id = aws_vpc.main.id
-
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
+# -------------------------------------------------
+# SECURITY GROUP: ALB
+# -------------------------------------------------
 resource "aws_security_group" "alb_sg" {
-  vpc_id = aws_vpc.main.id
+  name        = "alb-sg-${terraform.workspace}"
+  description = "Allow HTTP"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 80
@@ -83,4 +73,25 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
+# -------------------------------------------------
+# SECURITY GROUP: ECS TASKS
+# -------------------------------------------------
+resource "aws_security_group" "ecs_sg" {
+  name        = "ecs-sg-${terraform.workspace}"
+  description = "ECS tasks SG"
+  vpc_id      = aws_vpc.main.id
 
+  ingress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    security_groups = [aws_security_group.alb_sg.id] # allow ALB → ECS
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
