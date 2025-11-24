@@ -44,6 +44,7 @@ module "ecs" {
   ecs_sg_id            = module.network.ecs_sg_id
   alb_target_group_arn = module.alb.target_group_arn
 
+  aws_region = var.aws_region
   full_image = var.full_image
 }
 
