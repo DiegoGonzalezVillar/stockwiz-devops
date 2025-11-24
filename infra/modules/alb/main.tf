@@ -12,6 +12,7 @@ resource "aws_lb_target_group" "tg" {
   name     = "${var.project_name}-${var.env}-tg"
   port     = 8000
   protocol = "HTTP"
+  target_type = "ip"
   vpc_id   = aws_lb.app_lb.vpc_id
 
   health_check {
