@@ -1,78 +1,53 @@
-name: CI-CD Multi Env (EC2)
+name: Deploy DEV
 
 on:
   push:
-    branches: [ develop ]
-  workflow_dispatch:
+    branches: [ "develop" ]
 
 jobs:
-  dev:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      ENV: dev
-      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+    - uses: hashicorp/setup-terraform@v3
 
-      ################################################
-      # TERRAFORM INIT + APPLY
-      ################################################
-      - name: Terraform init
-        working-directory: ./infra
-        run: |
-          terraform init -reconfigure \
-            -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=dev/terraform.tfstate" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="encrypt=true"
+    - name: Terraform init
+      working-directory: ./infra
+      run: |
+        terraform init -reconfigure \
+        -backend-config="bucket=stockwiz-tfstate" \
+        -backend-config="key=dev/terraform.tfstate" \
+        -backend-config="region=us-east-1" \
+        -backend-config="encrypt=true"
 
-      - name: Terraform apply (create VPC, ALB, ECS, EC2, ECR)
-        working-directory: ./infra
-        run: terraform apply -auto-approve -var-file="env/dev.tfvars"
+    - name: Terraform apply
+      working-directory: ./infra
+      run: terraform apply -auto-approve -var-file="env/dev.tfvars"
 
-      ################################################
-      # BUILD + PUSH DOCKER IMAGES
-      ################################################
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+    - name: Login ECR
+      id: ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Docker images
-        run: |
-          REG="${{ steps.ecr.outputs.registry }}"
+    - name: Build & push full container
+      run: |
+        REG="${{ steps.ecr.outputs.registry }}"
 
-          docker build -t $REG/stockwiz-dev/api-gateway:dev-latest ./api-gateway
-          docker push  $REG/stockwiz-dev/api-gateway:dev-latest
+        docker build -t $REG/stockwiz-dev/fullstack:dev-latest ./docker-full
+        docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
-          docker build -t $REG/stockwiz-dev/product-service:dev-latest ./product-service
-          docker push  $REG/stockwiz-dev/product-service:dev-latest
-
-          docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
-          docker push  $REG/stockwiz-dev/inventory-service:dev-latest
-
-          docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
-          docker push  $REG/stockwiz-dev/postgres:dev-latest
-
-      ################################################
-      # UPDATE ECS SERVICE
-      ################################################
-      - name: Update ECS service
-        run: |
-          aws ecs update-service \
-            --cluster stockwiz-dev-cluster \
-            --service stockwiz-dev-svc \
-            --force-new-deployment
+    - name: Update ECS service
+      run: |
+        aws ecs update-service \
+          --cluster stockwiz-dev-cluster \
+          --service stockwiz-dev-svc \
+          --force-new-deployment
 
