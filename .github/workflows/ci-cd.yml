@@ -65,8 +65,7 @@ jobs:
         working-directory: ./infra
         run: |
           terraform apply -auto-approve \
-            -var-file="env/dev.tfvars" \
-            -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+            -var-file="env/dev.tfvars"
 
       ############################################
       # BUILD & PUSH de imágenes (incluye Postgres)
