@@ -34,7 +34,9 @@ module "ecr" {
 }
 
 module "ecs" {
-  source = "./modules/ecs-fargate-single"
+
+  source = "./modules/ecs"
+
 
   project_name         = var.project_name
   env                  = var.env
