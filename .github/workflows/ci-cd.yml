@@ -13,6 +13,9 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
+      ###########################################################
+      # CHECKOUT + DOCKER COMPOSE BUILD + TESTS
+      ###########################################################
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -38,6 +41,9 @@ jobs:
           curl -fsS http://localhost:8002/health
           docker compose down -v
 
+      ###########################################################
+      # AWS CONFIG
+      ###########################################################
       - name: Configure AWS credentials (Dev)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -46,22 +52,22 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ---------------------------------------------------
-      # LOGIN A ECR (AQUÍ SE OBTIENE EL REGISTRY CORRECTO)
-      # ---------------------------------------------------
+      ###########################################################
+      # LOGIN A ECR
+      ###########################################################
       - name: Login to ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # ---------------------------------------------------
-      # BUILD Y PUSH — NECESARIO ANTES DE TERRAFORM APPLY
-      # ---------------------------------------------------
+      ###########################################################
+      # BUILD + PUSH IMÁGENES
+      ###########################################################
       - name: Build & Push images to ECR (dev-latest)
         working-directory: ${{ github.workspace }}
         run: |
           set -e
-          REG="${{ steps.ecr.outputs.registry }}"
 
+          REG="${{ steps.ecr.outputs.registry }}"
           echo "Using registry: $REG"
 
           docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
@@ -76,9 +82,12 @@ jobs:
           docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
-      # ---------------------------------------------------
-      # TERRAFORM APPLY CON LAS IMÁGENES YA CORRECTAS
-      # ---------------------------------------------------
+      ###########################################################
+      # TERRAFORM APPLY (DESPUÉS DEL PUSH)
+      ###########################################################
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform init
         working-directory: ./infra
         run: terraform init -reconfigure -backend-config="backend-config/dev.hcl"
@@ -95,9 +104,9 @@ jobs:
             -var="inventory_image=$REG/stockwiz-dev/inventory-service:dev-latest" \
             -var="postgres_image=$REG/stockwiz-dev/postgres:dev-latest"
 
-      # ---------------------------------------------------
-      # DESPLIEGUE ECS
-      # ---------------------------------------------------
+      ###########################################################
+      # DESPLIEGUE A ECS
+      ###########################################################
       - name: Deploy ECS (Dev)
         run: |
           aws ecs update-service \
@@ -105,7 +114,7 @@ jobs:
             --service dev-api-gateway-svc \
             --force-new-deployment
 
-          aws ecs update-service \
+          aws ecs.update-service \
             --cluster ecs-fargate-cluster-dev \
             --service dev-product-service-svc \
             --force-new-deployment
@@ -114,137 +123,3 @@ jobs:
             --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
-
-
-
-  ###########################################################
-  # 2) TEST
-  ###########################################################
-  #test:
-  #  runs-on: ubuntu-latest
-  #  needs: dev
-  #  env:
-  #    ENV: test
-  #    AWS_REGION: ${{ secrets.AWS_REGION }}
-
-  #  steps:
-  #    - name: Checkout
-  #      uses: actions/checkout@v4
-
-  #    - name: Configure AWS credentials (Test)
-  #      uses: aws-actions/configure-aws-credentials@v4
-  #      with:
-  #        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-  #        aws-region: ${{ env.AWS_REGION }}
-
-  #    - name: Setup Terraform
-  #      uses: hashicorp/setup-terraform@v3
-
-      # Terraform crea repos/test si faltan
-  #    - name: Terraform init (Test)
-  #      working-directory: ./infra
-  #      run: |
-  #        terraform init -reconfigure \
-  #          -backend-config="bucket=stockwiz-tfstate" \
-  #          -backend-config="key=${ENV}/terraform.tfstate" \
-  #          -backend-config="region=${AWS_REGION}" \
-  #          -backend-config="encrypt=true"
-  #    - name: Terraform apply (Test)
-  #      working-directory: ./infra
-  #      run: terraform apply -auto-approve -var-file=env/test.tfvars
-
-  #    - name: Login to ECR
-  #      id: ecr
-  #      uses: aws-actions/amazon-ecr-login@v2
-
-   #   - name: Promote images dev -> test
-   #     run: |
-   #       set -e
-   #       REG="${{ steps.ecr.outputs.registry }}"
-
-   #       docker pull $REG/stockwiz-dev/api-gateway:dev-latest
-   #       docker tag  $REG/stockwiz-dev/api-gateway:dev-latest $REG/stockwiz-test/api-gateway:test-latest
-   #       docker push $REG/stockwiz-test/api-gateway:test-latest
-
-   #       docker pull $REG/stockwiz-dev/product-service:dev-latest
-   #       docker tag  $REG/stockwiz-dev/product-service:dev-latest $REG/stockwiz-test/product-service:test-latest
-   #       docker push $REG/stockwiz-test/product-service:test-latest
-
-   #       docker pull $REG/stockwiz-dev/inventory-service:dev-latest
-   #       docker tag  $REG/stockwiz-dev/inventory-service:dev-latest $REG/stockwiz-test/inventory-service:test-latest
-   #       docker push $REG/stockwiz-test/inventory-service:test-latest
-
-   #   - name: Deploy ECS (Test)
-   #     run: |
-   #       aws ecs update-service --cluster ecs-cluster-test --service test-api-gateway-svc --force-new-deployment
-   #       aws ecs update-service --cluster ecs-cluster-test --service test-product-service-svc --force-new-deployment
-   #       aws ecs update-service --cluster ecs-cluster-test --service test-inventory-service-svc --force-new-deployment
-
-  ###########################################################
-  # 3) PROD
-  ###########################################################
-  #prod:
-  #  runs-on: ubuntu-latest
-  #  needs: test
-  #  env:
-  #    ENV: prod
-  #    AWS_REGION: ${{ secrets.AWS_REGION }}
-
-  #  steps:
-  #    - name: Checkout
-  #      uses: actions/checkout@v4
-
-  #    - name: Configure AWS credentials (Prod)
-  #      uses: aws-actions/configure-aws-credentials@v4
-  #      with:
-  #        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-  #        aws-region: ${{ env.AWS_REGION }}
-
-  #    - name: Setup Terraform
-  #      uses: hashicorp/setup-terraform@v3
-
-      # Terraform crea repos/prod si faltan
-  #    - name: Terraform init (Prod)
-  #      working-directory: ./infra
-  #      run: |
-  #        terraform init -reconfigure \
-  #          -backend-config="bucket=stockwiz-tfstate" \
-  #          -backend-config="key=${ENV}/terraform.tfstate" \
-  #          -backend-config="region=${AWS_REGION}" \
-  #          -backend-config="encrypt=true"
-
-
-  #    - name: Terraform apply (Prod)
-  #      working-directory: ./infra
-  #      run: terraform apply -auto-approve -var-file=env/prod.tfvars
-
-  #    - name: Login to ECR
-  #      id: ecr
-  #      uses: aws-actions/amazon-ecr-login@v2
-
-  #    - name: Promote images test -> prod
-  #      run: |
-  #        set -e
-  #        REG="${{ steps.ecr.outputs.registry }}"
-
-  #        docker pull $REG/stockwiz-test/api-gateway:test-latest
-  #        docker tag  $REG/stockwiz-test/api-gateway:test-latest $REG/stockwiz-prod/api-gateway:prod-latest
-  #        docker push $REG/stockwiz-prod/api-gateway:prod-latest
-
-  #        docker pull $REG/stockwiz-test/product-service:test-latest
-  #        docker tag  $REG/stockwiz-test/product-service:test-latest $REG/stockwiz-prod/product-service:prod-latest
-  #        docker push $REG/stockwiz-prod/product-service:prod-latest
-
-  #        docker pull $REG/stockwiz-test/inventory-service:test-latest
-  #        docker tag  $REG/stockwiz-test/inventory-service:test-latest $REG/stockwiz-prod/inventory-service:prod-latest
-  #        docker push $REG/stockwiz-prod/inventory-service:prod-latest
-
-  #    - name: Deploy ECS (Prod)
-  #      run: |
-  #        aws ecs update-service --cluster ecs-cluster-prod --service prod-api-gateway-svc --force-new-deployment
-  #        aws ecs update-service --cluster ecs-cluster-prod --service prod-product-service-svc --force-new-deployment
-  #        aws ecs update-service --cluster ecs-cluster-prod --service prod-inventory-service-svc --force-new-deployment
