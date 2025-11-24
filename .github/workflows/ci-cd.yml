@@ -9,8 +9,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    #############################################
+    # CHECKOUT
+    #############################################
     - uses: actions/checkout@v4
 
+    #############################################
+    # AWS CREDENTIALS
+    #############################################
     - uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -18,36 +24,60 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
+    #############################################
+    # TERRAFORM INIT
+    #############################################
     - uses: hashicorp/setup-terraform@v3
 
     - name: Terraform init
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
-        -backend-config="bucket=stockwiz-tfstate" \
-        -backend-config="key=dev/terraform.tfstate" \
-        -backend-config="region=us-east-1" \
-        -backend-config="encrypt=true"
+          -backend-config="bucket=stockwiz-tfstate" \
+          -backend-config="key=dev/terraform.tfstate" \
+          -backend-config="region=us-east-1" \
+          -backend-config="encrypt=true"
 
-    - name: Terraform apply
+    #############################################
+    # TERRAFORM APPLY #1 — CREAR ECR + VPC + ALB + ECS vacío
+    #############################################
+    - name: Terraform apply infra (ECR, VPC, ALB, ECS base)
       working-directory: ./infra
       run: terraform apply -auto-approve -var-file="env/dev.tfvars"
 
+    #############################################
+    # LOGIN ECR
+    #############################################
     - name: Login ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build & push full container
+    #############################################
+    # BUILD & PUSH FULLSTACK IMAGE
+    #############################################
+    - name: Build & push fullstack container
       run: |
         REG="${{ steps.ecr.outputs.registry }}"
-
-        docker build -t $REG/stockwiz-dev/fullstack:dev-latest ./docker-full
+        
+        docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
         docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
+    #############################################
+    # TERRAFORM APPLY #2 — CREAR TASK DEFINITION CON LA IMAGEN
+    #############################################
+    - name: Terraform apply with image
+      working-directory: ./infra
+      run: |
+        terraform apply -auto-approve \
+        -var-file="env/dev.tfvars" \
+        -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
+
+    #############################################
+    # UPDATE ECS SERVICE
+    #############################################
     - name: Update ECS service
       run: |
         aws ecs update-service \
           --cluster stockwiz-dev-cluster \
           --service stockwiz-dev-svc \
           --force-new-deployment
-
