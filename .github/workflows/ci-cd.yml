@@ -76,6 +76,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build & Push images to ECR (dev-latest)
+        working-directory: ${{ github.workspace }}
         run: |
           set -e
           REG="${{ steps.ecr.outputs.registry }}"
