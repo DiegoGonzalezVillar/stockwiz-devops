@@ -1,79 +1,35 @@
-name: Destroy AWS Infrastructure (EC2)
+name: Destroy DEV Infra
 
 on:
   workflow_dispatch:
-    inputs:
-      env:
-        description: "Environment to destroy (dev/test/prod)"
-        required: true
-        type: choice
-        options:
-          - dev
-          - test
-          - prod
-
-      confirm:
-        description: 'Type "destroy" to confirm'
-        required: true
-        type: string
-
-env:
-  AWS_REGION: us-east-1
-  TF_BUCKET: stockwiz-tfstate
 
 jobs:
   destroy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Validate confirmation
-      run: |
-        if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
-          echo "Destruction cancelled."
-          exit 1
-        fi
-        echo "Confirmation OK"
+    - uses: actions/checkout@v4
 
-    - name: Checkout repository
-      uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+    - uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: ${{ env.AWS_REGION }}
+        aws-region: us-east-1
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+    - uses: hashicorp/setup-terraform@v3
 
-    ###########################################################
-    # TERRAFORM INIT (REMOTE BACKEND)
-    ###########################################################
-    - name: Terraform Init
+    - name: Terraform destroy
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
-          -backend-config="bucket=${TF_BUCKET}" \
-          -backend-config="key=${{ github.event.inputs.env }}/terraform.tfstate" \
-          -backend-config="region=${AWS_REGION}" \
+          -backend-config="bucket=stockwiz-tfstate" \
+          -backend-config="key=dev/terraform.tfstate" \
+          -backend-config="region=us-east-1" \
           -backend-config="encrypt=true"
 
-    ###########################################################
-    # TERRAFORM DESTROY (ALL RESOURCES)
-    ###########################################################
-    - name: Terraform Destroy
-      working-directory: ./infra
-      run: |
-        terraform destroy -auto-approve \
-          -var-file="env/${{ github.event.inputs.env }}.tfvars" \
-          -var="api_image=placeholder" \
-          -var="postgres_image=placeholder" \
-          -var="redis_image=redis:7-alpine"
+        terraform destroy -auto-approve -var-file="env/dev.tfvars"
 
-    - name: Destroy complete
-      run: echo "Environment destroyed successfully!"
 
 
 
