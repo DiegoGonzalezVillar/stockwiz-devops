@@ -80,7 +80,7 @@ resource "aws_ecs_service" "api" {
   count = var.enabled ? 1 : 0
   name            = "${var.env}-api-gateway-svc"
   cluster         = aws_ecs_cluster.cluster.id
-  task_definition = aws_ecs_task_definition.api.arn
+  task_definition = aws_ecs_task_definition.api[0].arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
@@ -101,7 +101,7 @@ resource "aws_ecs_service" "product" {
   count = var.enabled ? 1 : 0
   name            = "${var.env}-product-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
-  task_definition = aws_ecs_task_definition.product.arn
+  task_definition = aws_ecs_task_definition.product[0].arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
@@ -116,7 +116,7 @@ resource "aws_ecs_service" "inventory" {
   count = var.enabled ? 1 : 0
   name            = "${var.env}-inventory-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
-  task_definition = aws_ecs_task_definition.inventory.arn
+  task_definition = aws_ecs_task_definition.inventory[0].arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
