@@ -1,5 +1,7 @@
 FROM ubuntu:22.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 ############################
 # 1) System dependencies
 ############################
@@ -60,3 +62,4 @@ EXPOSE 8000 5432 6379
 # 9) Start application suite
 ############################
 CMD ["/app/start.sh"]
+
