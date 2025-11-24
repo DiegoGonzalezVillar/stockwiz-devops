@@ -1,20 +1,21 @@
 resource "aws_lb" "app_lb" {
-  name = "${var.project_name}-${var.env}-alb"
+  name               = "${var.project_name}-${var.env}-alb"
   load_balancer_type = "application"
-  subnets            = [var.subnet_id]
   security_groups    = [var.alb_sg_id]
+  subnets            = var.public_subnets
 }
 
 resource "aws_lb_target_group" "tg" {
-  name        = "stockwiz-tg"
+  name        = "${var.project_name}-${var.env}-tg"
   port        = 8000
   protocol    = "HTTP"
   vpc_id      = aws_lb.app_lb.vpc_id
   target_type = "ip"
+
   health_check {
-  path    = "/"
-  matcher = "200-399"
-}
+    path    = "/"
+    matcher = "200-399"
+  }
 }
 
 resource "aws_lb_listener" "listener" {
@@ -27,5 +28,3 @@ resource "aws_lb_listener" "listener" {
     target_group_arn = aws_lb_target_group.tg.arn
   }
 }
-
-

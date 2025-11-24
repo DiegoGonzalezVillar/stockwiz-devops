@@ -26,11 +26,11 @@ module "ecr" {
 }
 
 module "alb" {
-  source        = "./modules/alb"
-  subnet_id     = module.network.subnet_id
-  alb_sg_id     = module.network.alb_sg_id
-  project_name  = var.project_name
-  env           = var.env
+  source         = "./modules/alb"
+  public_subnets = module.network.public_subnets
+  alb_sg_id      = module.network.alb_sg_id
+  project_name   = var.project_name
+  env            = var.env
 }
 
 
