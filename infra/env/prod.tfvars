@@ -12,7 +12,5 @@ ecr_repositories = [
 ]
 
 api_image        = "placeholder"
-product_image    = "placeholder"
-inventory_image  = "placeholder"
 postgres_image   = "placeholder"
 redis_image      = "redis:7-alpine"

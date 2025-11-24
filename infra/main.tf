@@ -58,8 +58,6 @@ module "ecs_ec2" {
   # container images (from workflow)
   api_image        = var.api_image
   postgres_image   = var.postgres_image
-  inventory_image  = var.inventory_image
-  product_image    = var.product_image
   redis_image      = var.redis_image
 }
 
