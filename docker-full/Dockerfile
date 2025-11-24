@@ -43,7 +43,7 @@ COPY postgres-custom/init.sql /app/init.sql
 #########################
 # STARTUP SCRIPT
 #########################
-COPY docker-full/start.sh /app/start.sh
+COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 #########################
