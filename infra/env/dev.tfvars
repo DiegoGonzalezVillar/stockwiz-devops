@@ -7,5 +7,4 @@ ecr_repositories = [
   "fullstack"
 ]
 
-full_image = "placeholder"
 
