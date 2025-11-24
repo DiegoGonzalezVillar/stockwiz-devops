@@ -211,6 +211,7 @@ jobs:
       run: |
         terraform destroy -auto-approve \
           -var-file="env/${{ github.event.inputs.env }}.tfvars" \
+          -var="enabled=false" \
           -var="api_image=placeholder" \
           -var="product_image=placeholder" \
           -var="inventory_image=placeholder" \
@@ -218,3 +219,4 @@ jobs:
 
     - name: Purge done
       run: echo "Environment ${{ github.event.inputs.env }} fully purged."
+
