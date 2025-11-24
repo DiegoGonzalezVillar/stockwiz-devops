@@ -66,11 +66,13 @@ jobs:
         working-directory: ./infra
         run: |
           terraform apply -auto-approve \
-            -var-file="env/dev.tfvars" \
+            -var-file=env/dev.tfvars \
+            -var="enabled=false" \
             -var="api_image=placeholder" \
             -var="product_image=placeholder" \
             -var="inventory_image=placeholder" \
             -var="postgres_image=placeholder"
+
 
       ###########################################################
       # LOGIN A ECR
@@ -120,10 +122,12 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var-file="env/dev.tfvars" \
+            -var="enabled=true" \
             -var="api_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/api-gateway:dev-latest" \
             -var="product_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/product-service:dev-latest" \
             -var="inventory_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/inventory-service:dev-latest" \
             -var="postgres_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/postgres:dev-latest"
+
 
       ###########################################################
       # ECS UPDATE SERVICES
