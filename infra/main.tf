@@ -38,10 +38,11 @@ module "ecs" {
   source           = "./modules/ecs"
   account_id       = var.account_id
   region           = var.aws_region
-  subnet_id        = module.network.subnet_id
+  public_subnets   = module.network.public_subnets
   ecs_sg_id        = module.network.ecs_sg_id
   target_group_arn = module.alb.target_group_arn
   project_name     = var.project_name
   env              = var.env
 }
+
 
