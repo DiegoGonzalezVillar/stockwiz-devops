@@ -26,7 +26,6 @@ jobs:
         run: |
           pipx install flake8
           flake8 product-service || true
-          
           (cd api-gateway && go vet ./... || true)
           (cd inventory-service && go vet ./... || true)
 
@@ -34,11 +33,9 @@ jobs:
         run: |
           docker compose up -d
           sleep 20
-
           curl -fsS http://localhost:8000/health
           curl -fsS http://localhost:8001/health
           curl -fsS http://localhost:8002/health
-
           docker compose down -v
 
       - name: Configure AWS credentials (Dev)
@@ -49,37 +46,23 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      ############################################
-      # TERRAFORM (crea VPC, ECS, ALB, ECR, etc.)
-      ############################################
-      - name: Terraform init (Dev)
-        working-directory: ./infra
-        run: |
-          terraform init -reconfigure \
-            -backend-config="backend-config/dev.hcl"
-
-          terraform apply -auto-approve \
-            -var-file="env/dev.tfvars" \
-            -var="api_image=$REG/stockwiz-dev/api-gateway:dev-latest" \
-            -var="product_image=$REG/stockwiz-dev/product-service:dev-latest" \
-            -var="inventory_image=$REG/stockwiz-dev/inventory-service:dev-latest" \
-            -var="postgres_image=$REG/stockwiz-dev/postgres:dev-latest"
-
-      ############################################
-      # BUILD & PUSH de imágenes (incluye Postgres)
-      ############################################
+      # ---------------------------------------------------
+      # LOGIN A ECR (AQUÍ SE OBTIENE EL REGISTRY CORRECTO)
+      # ---------------------------------------------------
       - name: Login to ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ---------------------------------------------------
+      # BUILD Y PUSH — NECESARIO ANTES DE TERRAFORM APPLY
+      # ---------------------------------------------------
       - name: Build & Push images to ECR (dev-latest)
         working-directory: ${{ github.workspace }}
         run: |
           set -e
           REG="${{ steps.ecr.outputs.registry }}"
+
+          echo "Using registry: $REG"
 
           docker build -t $REG/stockwiz-dev/postgres:dev-latest ./postgres-custom
           docker push  $REG/stockwiz-dev/postgres:dev-latest
@@ -93,9 +76,28 @@ jobs:
           docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
-      ############################################
+      # ---------------------------------------------------
+      # TERRAFORM APPLY CON LAS IMÁGENES YA CORRECTAS
+      # ---------------------------------------------------
+      - name: Terraform init
+        working-directory: ./infra
+        run: terraform init -reconfigure -backend-config="backend-config/dev.hcl"
+
+      - name: Terraform apply (Dev infra resources)
+        working-directory: ./infra
+        run: |
+          REG="${{ steps.ecr.outputs.registry }}"
+
+          terraform apply -auto-approve \
+            -var-file="env/dev.tfvars" \
+            -var="api_image=$REG/stockwiz-dev/api-gateway:dev-latest" \
+            -var="product_image=$REG/stockwiz-dev/product-service:dev-latest" \
+            -var="inventory_image=$REG/stockwiz-dev/inventory-service:dev-latest" \
+            -var="postgres_image=$REG/stockwiz-dev/postgres:dev-latest"
+
+      # ---------------------------------------------------
       # DESPLIEGUE ECS
-      ############################################
+      # ---------------------------------------------------
       - name: Deploy ECS (Dev)
         run: |
           aws ecs update-service \
@@ -108,10 +110,11 @@ jobs:
             --service dev-product-service-svc \
             --force-new-deployment
 
-          aws ecs update-service \
+          aws ecs.update-service \
             --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
+
 
 
   ###########################################################
