@@ -41,7 +41,7 @@ jobs:
       run: |
         REG="${{ steps.ecr.outputs.registry }}"
 
-        docker build -t $REG/stockwiz-dev/fullstack:dev-latest ./docker-full
+        docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
         docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
     - name: Update ECS service
