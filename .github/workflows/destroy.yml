@@ -18,7 +18,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  TF_BUCKET: stockwiz-tfstate
 
 jobs:
   destroy:
@@ -51,19 +50,13 @@ jobs:
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
-          -backend-config="bucket=${TF_BUCKET}" \
-          -backend-config="key=${{ github.event.inputs.env }}/terraform.tfstate" \
-          -backend-config="region=${AWS_REGION}" \
-          -backend-config="encrypt=true"
+          -backend-config="backend-config/${{ github.event.inputs.env }}.hcl"
 
     - name: Terraform Destroy
       working-directory: ./infra
-      run: terraform destroy -auto-approve -var-file=env/${{ github.event.inputs.env }}.tfvars
-
-    - name: Destroy complete
-      run: echo "Environment destroyed successfully!"
-
-
+      run: terraform destroy \
+              -auto-approve \
+              -var-file="env/${{ github.event.inputs.env }}.tfvars"
 
     - name: Destroy complete
       run: echo "Environment destroyed successfully!"
