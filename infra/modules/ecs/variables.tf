@@ -21,3 +21,19 @@ variable "env" {
 variable "region" {
   type = string
 }
+
+variable "api_image" {
+  type = string
+}
+
+variable "product_image" {
+  type = string
+}
+
+variable "inventory_image" {
+  type = string
+}
+
+variable "postgres_image" {
+  type = string
+}

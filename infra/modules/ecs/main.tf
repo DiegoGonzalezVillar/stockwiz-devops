@@ -1,3 +1,7 @@
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
 resource "aws_ecs_cluster" "cluster" {
   name = "ecs-fargate-cluster-${var.env}"
 }
@@ -9,27 +13,24 @@ resource "aws_ecs_task_definition" "api" {
   memory                   = "1024"
   network_mode             = "awsvpc"
 
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
   container_definitions = jsonencode([
     {
       name  = "api_gateway"
-      image = "api-gateway"      
-      portMappings = [
-        { containerPort = 8000 }
-      ]
+      image = var.api_image
+      portMappings = [{ containerPort = 8000 }]
     },
     {
       name  = "postgres"
-      image = "postgres"         
-      portMappings = [
-        { containerPort = 5432 }
-      ]
+      image = var.postgres_image
+      portMappings = [{ containerPort = 5432 }]
     },
     {
       name  = "redis"
-      image = "redis:7-alpine"     # imagen oficial pública
-      portMappings = [
-        { containerPort = 6379 }
-      ]
+      image = "redis:7-alpine"
+      portMappings = [{ containerPort = 6379 }]
     }
   ])
 }
@@ -41,13 +42,14 @@ resource "aws_ecs_task_definition" "product" {
   memory                   = "1024"
   network_mode             = "awsvpc"
 
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
   container_definitions = jsonencode([
     {
       name  = "product_service"
-      image = "product-service"  
-      portMappings = [
-        { containerPort = 8001 }
-      ]
+      image = var.product_image
+      portMappings = [{ containerPort = 8001 }]
     }
   ])
 }
@@ -59,13 +61,14 @@ resource "aws_ecs_task_definition" "inventory" {
   memory                   = "1024"
   network_mode             = "awsvpc"
 
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+
   container_definitions = jsonencode([
     {
       name  = "inventory_service"
-      image = "inventory-service"  
-      portMappings = [
-        { containerPort = 8002 }
-      ]
+      image = var.inventory_image
+      portMappings = [{ containerPort = 8002 }]
     }
   ])
 }
