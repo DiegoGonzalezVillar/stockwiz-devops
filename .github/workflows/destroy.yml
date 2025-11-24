@@ -57,10 +57,10 @@ jobs:
       run: |
         terraform destroy \
         -auto-approve \
-        -var-file="env/${{ github.event.inputs.env }}.tfvars" \
-        -var="account_id=${{ secrets.AWS_ACCOUNT_ID }}"
+        -var-file="env/${{ github.event.inputs.env }}.tfvars"
 
 
     - name: Destroy complete
       run: echo "Environment destroyed successfully!"
+
 
