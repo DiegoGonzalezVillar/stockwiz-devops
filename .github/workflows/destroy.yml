@@ -25,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    ############################################################
+    # VALIDAR CONFIRMACIÓN
+    ############################################################
     - name: Validate confirmation
       run: |
         if [ "${{ github.event.inputs.confirm_destroy }}" != "destroy" ]; then
@@ -33,13 +36,16 @@ jobs:
         fi
         echo "Confirmation OK"
 
+    ############################################################
+    # CHECKOUT
+    ############################################################
     - name: Checkout code
       uses: actions/checkout@v3
 
     ############################################################
-    # REFRESH TOKEN (IMPORTANTÍSIMO EN AWS ACADEMY)
+    # REFRESH TOKEN (VERY IMPORTANT IN AWS ACADEMY)
     ############################################################
-    - name: Configure AWS credentials (REFRESH)
+    - name: Configure AWS credentials (REFRESH TOKEN)
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -47,13 +53,16 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ env.AWS_REGION }}
 
+    ############################################################
+    # SETUP TERRAFORM
+    ############################################################
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
     ############################################################
-    # TERRAFORM INIT (correct backend)
+    # TERRAFORM INIT (BACKEND REMOTO)
     ############################################################
-    - name: Terraform Init (remote backend)
+    - name: Terraform Init
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
@@ -63,7 +72,34 @@ jobs:
           -backend-config="encrypt=true"
 
     ############################################################
-    # TERRAFORM DESTROY (con placeholders obligatorios)
+    # DELETE ECS SERVICES BEFORE TERRAFORM DESTROY
+    ############################################################
+    - name: Delete ECS services (Dev)
+      if: ${{ github.event.inputs.env == 'dev' }}
+      run: |
+        echo "Deleting ECS services for DEV..."
+        aws ecs delete-service --cluster ecs-fargate-cluster-dev --service dev-api-gateway-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-dev --service dev-product-service-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-dev --service dev-inventory-service-svc --force || true
+
+    - name: Delete ECS services (Test)
+      if: ${{ github.event.inputs.env == 'test' }}
+      run: |
+        echo "Deleting ECS services for TEST..."
+        aws ecs delete-service --cluster ecs-fargate-cluster-test --service test-api-gateway-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-test --service test-product-service-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-test --service test-inventory-service-svc --force || true
+
+    - name: Delete ECS services (Prod)
+      if: ${{ github.event.inputs.env == 'prod' }}
+      run: |
+        echo "Deleting ECS services for PROD..."
+        aws ecs delete-service --cluster ecs-fargate-cluster-prod --service prod-api-gateway-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-prod --service prod-product-service-svc --force || true
+        aws ecs delete-service --cluster ecs-fargate-cluster-prod --service prod-inventory-service-svc --force || true
+
+    ############################################################
+    # TERRAFORM DESTROY (CON PLACEHOLDERS)
     ############################################################
     - name: Terraform Destroy
       working-directory: ./infra
@@ -75,5 +111,8 @@ jobs:
           -var="inventory_image=placeholder" \
           -var="postgres_image=placeholder"
 
+    ############################################################
+    # DONE
+    ############################################################
     - name: Destroy complete
-      run: echo "Environment destroyed successfully!"
+      run: echo "Environment ${{ github.event.inputs.env }} destroyed successfully!"
