@@ -42,7 +42,7 @@ jobs:
           docker compose down -v
 
       ###########################################################
-      # AWS CONFIG
+      # CONFIGURAR AWS
       ###########################################################
       - name: Configure AWS credentials (Dev)
         uses: aws-actions/configure-aws-credentials@v4
@@ -51,6 +51,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      ###########################################################
+      # TERRAFORM INIT + APPLY (1) — CREA LA INFRA Y ECR
+      ###########################################################
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init (Dev)
+        working-directory: ./infra
+        run: terraform init -reconfigure -backend-config="backend-config/dev.hcl"
+
+      - name: Terraform apply infra (crear ECR antes del push)
+        working-directory: ./infra
+        run: |
+          terraform apply -auto-approve \
+            -var-file="env/dev.tfvars"
 
       ###########################################################
       # LOGIN A ECR
@@ -66,7 +82,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           set -e
-
           REG="${{ steps.ecr.outputs.registry }}"
           echo "Using registry: $REG"
 
@@ -83,16 +98,9 @@ jobs:
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
       ###########################################################
-      # TERRAFORM APPLY (DESPUÉS DEL PUSH)
+      # TERRAFORM APPLY (2) — CREAR TASK DEFINITIONS CON IMÁGENES
       ###########################################################
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform init
-        working-directory: ./infra
-        run: terraform init -reconfigure -backend-config="backend-config/dev.hcl"
-
-      - name: Terraform apply (Dev infra resources)
+      - name: Terraform apply with images
         working-directory: ./infra
         run: |
           REG="${{ steps.ecr.outputs.registry }}"
@@ -105,7 +113,7 @@ jobs:
             -var="postgres_image=$REG/stockwiz-dev/postgres:dev-latest"
 
       ###########################################################
-      # DESPLIEGUE A ECS
+      # ECS UPDATE SERVICES
       ###########################################################
       - name: Deploy ECS (Dev)
         run: |
@@ -114,12 +122,12 @@ jobs:
             --service dev-api-gateway-svc \
             --force-new-deployment
 
-          aws ecs.update-service \
+          aws ecs update-service \
             --cluster ecs-fargate-cluster-dev \
             --service dev-product-service-svc \
             --force-new-deployment
 
-          aws ecs.update-service \
+          aws ecs update-service \
             --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
