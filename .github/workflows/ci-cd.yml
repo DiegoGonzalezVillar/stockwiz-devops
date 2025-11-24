@@ -32,7 +32,7 @@ jobs:
           (cd api-gateway && go vet ./... || true)
           (cd inventory-service && go vet ./... || true)
 
-      - name: Run integration tests (Docker Compose)
+      - name: Run integration tests
         run: |
           docker compose up -d
           sleep 20
@@ -42,9 +42,9 @@ jobs:
           docker compose down -v
 
       ###########################################################
-      # CONFIGURAR AWS
+      # CONFIGURAR AWS (TOKEN 1)
       ###########################################################
-      - name: Configure AWS credentials (Dev)
+      - name: Configure AWS credentials (Dev - Initial Login)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -53,8 +53,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       ###########################################################
-      # TERRAFORM INIT + APPLY (1)
-      # CREA TODA LA INFRA, PERO USA PLACEHOLDERS
+      # TERRAFORM INIT + APPLY (1) — PLACEHOLDERS
       ###########################################################
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -87,7 +86,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           set -e
-
           REG="${{ steps.ecr.outputs.registry }}"
           echo "Using registry: $REG"
 
@@ -104,8 +102,18 @@ jobs:
           docker push  $REG/stockwiz-dev/inventory-service:dev-latest
 
       ###########################################################
-      # TERRAFORM APPLY (2 — FINAL)
-      # CREA TASK DEFINITIONS CON IMÁGENES REALES
+      # FIX EXPIRING TOKEN — RE-AUTENTICAR AWS
+      ###########################################################
+      - name: Reconfigure AWS credentials (Dev - Token Refresh)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      ###########################################################
+      # TERRAFORM APPLY (2) — CON IMÁGENES REALES
       ###########################################################
       - name: Terraform apply with images
         working-directory: ./infra
@@ -136,4 +144,3 @@ jobs:
             --cluster ecs-fargate-cluster-dev \
             --service dev-inventory-service-svc \
             --force-new-deployment
-
