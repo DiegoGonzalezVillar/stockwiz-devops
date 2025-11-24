@@ -1,3 +1,10 @@
+
+
+data "aws_availability_zones" "available" {}
+
+##############################
+# VPC
+##############################
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -8,9 +15,9 @@ resource "aws_vpc" "main" {
   }
 }
 
-# -------------------------------------------------
-# PUBLIC SUBNETS (2 AZ required for ALB/ECS)
-# -------------------------------------------------
+##############################
+# PUBLIC SUBNETS (2)
+##############################
 resource "aws_subnet" "public_subnet" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -23,19 +30,17 @@ resource "aws_subnet" "public_subnet" {
   }
 }
 
-data "aws_availability_zones" "available" {}
-
-# -------------------------------------------------
+##############################
 # INTERNET GATEWAY
-# -------------------------------------------------
+##############################
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 }
 
-# -------------------------------------------------
+##############################
 # PUBLIC ROUTE TABLE
-# -------------------------------------------------
-resource "aws_route_table" "public" {
+##############################
+resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
 
   route {
@@ -47,15 +52,17 @@ resource "aws_route_table" "public" {
 resource "aws_route_table_association" "public_assoc" {
   count          = length(aws_subnet.public_subnet)
   subnet_id      = aws_subnet.public_subnet[count.index].id
-  route_table_id = aws_route_table.public.id
+  route_table_id = aws_route_table.public_rt.id
 }
 
-# -------------------------------------------------
-# SECURITY GROUP: ALB
-# -------------------------------------------------
+##############################
+# SECURITY GROUPS
+##############################
+
+# ALB security group
 resource "aws_security_group" "alb_sg" {
   name        = "alb-sg-${terraform.workspace}"
-  description = "Allow HTTP"
+  description = "Allow inbound HTTP"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -73,19 +80,17 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# -------------------------------------------------
-# SECURITY GROUP: ECS TASKS
-# -------------------------------------------------
+# ECS Tasks SG
 resource "aws_security_group" "ecs_sg" {
   name        = "ecs-sg-${terraform.workspace}"
-  description = "ECS tasks SG"
+  description = "Allow traffic from ALB"
   vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port       = 0
     to_port         = 0
     protocol        = "-1"
-    security_groups = [aws_security_group.alb_sg.id] # allow ALB → ECS
+    security_groups = [aws_security_group.alb_sg.id]
   }
 
   egress {
@@ -95,3 +100,4 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
