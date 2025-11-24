@@ -36,7 +36,6 @@ module "alb" {
 
 module "ecs" {
   source           = "./modules/ecs"
-  account_id       = var.account_id
   region           = var.aws_region
   public_subnets   = module.network.public_subnets
   ecs_sg_id        = module.network.ecs_sg_id
