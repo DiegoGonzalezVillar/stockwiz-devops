@@ -69,13 +69,12 @@ jobs:
         terraform destroy -auto-approve \
           -var-file="env/${{ github.event.inputs.env }}.tfvars" \
           -var="api_image=placeholder" \
-          -var="product_image=placeholder" \
-          -var="inventory_image=placeholder" \
           -var="postgres_image=placeholder" \
           -var="redis_image=redis:7-alpine"
 
     - name: Destroy complete
       run: echo "Environment destroyed successfully!"
+
 
 
 
