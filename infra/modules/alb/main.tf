@@ -1,3 +1,11 @@
+variable "public_subnets" {
+  type = list(string)
+}
+
+variable "alb_sg_id" {}
+variable "project_name" {}
+variable "env" {}
+
 resource "aws_lb" "app_lb" {
   name               = "${var.project_name}-${var.env}-alb"
   load_balancer_type = "application"
@@ -5,11 +13,14 @@ resource "aws_lb" "app_lb" {
   subnets            = var.public_subnets
 }
 
+####################################
+# TARGET GROUP
+####################################
 resource "aws_lb_target_group" "tg" {
   name     = "${var.project_name}-${var.env}-tg"
   port     = 8000
   protocol = "HTTP"
-  vpc_id   = data.aws_lb.app_lb.vpc_id
+  vpc_id   = aws_lb.app_lb.vpc_id
 
   health_check {
     path                = "/"
@@ -21,6 +32,9 @@ resource "aws_lb_target_group" "tg" {
   }
 }
 
+####################################
+# LISTENER
+####################################
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = aws_lb.app_lb.arn
   port              = 80
