@@ -61,11 +61,12 @@ jobs:
           terraform init -reconfigure \
             -backend-config="backend-config/dev.hcl"
 
-      - name: Terraform apply
-        working-directory: ./infra
-        run: |
           terraform apply -auto-approve \
-            -var-file="env/dev.tfvars"
+            -var-file="env/dev.tfvars" \
+            -var="api_image=$REG/stockwiz-dev/api-gateway:dev-latest" \
+            -var="product_image=$REG/stockwiz-dev/product-service:dev-latest" \
+            -var="inventory_image=$REG/stockwiz-dev/inventory-service:dev-latest" \
+            -var="postgres_image=$REG/stockwiz-dev/postgres:dev-latest"
 
       ############################################
       # BUILD & PUSH de imágenes (incluye Postgres)
