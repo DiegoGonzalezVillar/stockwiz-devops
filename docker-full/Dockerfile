@@ -38,7 +38,7 @@ RUN go build -o inventory-service .
 
 # Postgres initialization SQL
 WORKDIR /app
-COPY postgres-custom/init.sql /app/init.sql
+COPY init.sql /app/init.sql
 
 #########################
 # STARTUP SCRIPT
