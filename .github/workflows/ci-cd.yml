@@ -67,7 +67,8 @@ jobs:
     #############################################
     - name: Terraform apply with image
       working-directory: ./infra
-      run: terraform apply -auto-approve \
+      run: |
+        terraform apply -auto-approve \
         -var-file="env/dev.tfvars" \
         -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
 
