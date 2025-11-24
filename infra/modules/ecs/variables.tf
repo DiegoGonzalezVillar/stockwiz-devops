@@ -22,6 +22,12 @@ variable "region" {
   type = string
 }
 
+variable "enabled" {
+  type    = bool
+  default = true
+}
+
+
 variable "api_image" {
   type = string
 }

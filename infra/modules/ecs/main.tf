@@ -7,6 +7,7 @@ resource "aws_ecs_cluster" "cluster" {
 }
 
 resource "aws_ecs_task_definition" "api" {
+  count = var.enabled ? 1 : 0
   family                   = "api-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -36,6 +37,7 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 resource "aws_ecs_task_definition" "product" {
+  count = var.enabled ? 1 : 0
   family                   = "product-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -55,6 +57,7 @@ resource "aws_ecs_task_definition" "product" {
 }
 
 resource "aws_ecs_task_definition" "inventory" {
+  count = var.enabled ? 1 : 0
   family                   = "inventory-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -74,6 +77,7 @@ resource "aws_ecs_task_definition" "inventory" {
 }
 
 resource "aws_ecs_service" "api" {
+  count = var.enabled ? 1 : 0
   name            = "${var.env}-api-gateway-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.api.arn
@@ -94,6 +98,7 @@ resource "aws_ecs_service" "api" {
 }
 
 resource "aws_ecs_service" "product" {
+  count = var.enabled ? 1 : 0
   name            = "${var.env}-product-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.product.arn
@@ -108,6 +113,7 @@ resource "aws_ecs_service" "product" {
 }
 
 resource "aws_ecs_service" "inventory" {
+  count = var.enabled ? 1 : 0
   name            = "${var.env}-inventory-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.inventory.arn
