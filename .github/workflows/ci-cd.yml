@@ -44,13 +44,9 @@ jobs:
         docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
         docker push  $REG/stockwiz-dev/fullstack:dev-latest
     
-    - name: Terraform apply (update image)
+    - name: Terraform apply with image
       working-directory: ./infra
-      run: |
-        terraform apply -auto-approve \
-        -var-file="env/dev.tfvars" \
-        -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
-
+      run: terraform apply -auto-approve -var-file="env/dev.tfvars" -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
 
     - name: Update ECS service
       run: |
