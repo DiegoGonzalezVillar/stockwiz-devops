@@ -6,8 +6,14 @@ resource "aws_ecs_cluster" "cluster" {
   name = "ecs-fargate-cluster-${var.env}"
 }
 
+# -------------------------------------------------
+# TASK DEFINITIONS (3 microservices + postgres + redis optional)
+# -------------------------------------------------
+
+# API GATEWAY
 resource "aws_ecs_task_definition" "api" {
   count = var.enabled ? 1 : 0
+
   family                   = "api-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -36,8 +42,10 @@ resource "aws_ecs_task_definition" "api" {
   ])
 }
 
+# PRODUCT SERVICE
 resource "aws_ecs_task_definition" "product" {
   count = var.enabled ? 1 : 0
+
   family                   = "product-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -56,8 +64,10 @@ resource "aws_ecs_task_definition" "product" {
   ])
 }
 
+# INVENTORY SERVICE
 resource "aws_ecs_task_definition" "inventory" {
   count = var.enabled ? 1 : 0
+
   family                   = "inventory-${var.env}"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -76,8 +86,13 @@ resource "aws_ecs_task_definition" "inventory" {
   ])
 }
 
+# -------------------------------------------------
+# SERVICES
+# -------------------------------------------------
+
 resource "aws_ecs_service" "api" {
   count = var.enabled ? 1 : 0
+
   name            = "${var.env}-api-gateway-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.api[0].arn
@@ -85,8 +100,8 @@ resource "aws_ecs_service" "api" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = var.public_subnets
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 
@@ -99,6 +114,7 @@ resource "aws_ecs_service" "api" {
 
 resource "aws_ecs_service" "product" {
   count = var.enabled ? 1 : 0
+
   name            = "${var.env}-product-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.product[0].arn
@@ -106,14 +122,15 @@ resource "aws_ecs_service" "product" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = var.public_subnets
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 }
 
 resource "aws_ecs_service" "inventory" {
   count = var.enabled ? 1 : 0
+
   name            = "${var.env}-inventory-service-svc"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.inventory[0].arn
@@ -121,8 +138,8 @@ resource "aws_ecs_service" "inventory" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = var.public_subnets
-    security_groups = [var.ecs_sg_id]
+    subnets          = var.public_subnets
+    security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
 }
