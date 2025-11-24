@@ -1,120 +1,56 @@
-name: CI-CD Multi Env
+name: Deploy DEV
 
 on:
   push:
-    branches: [ develop ]
-  workflow_dispatch:
+    branches: [ "develop" ]
 
 jobs:
-  ###########################################################
-  # 1) DEV: Build + Tests + Push ECR dev + Terraform dev + ECS dev
-  ###########################################################
-  dev:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      ENV: dev
-      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1
 
-      - name: Docker Compose build (Dev)
-        run: docker compose build
+    - uses: hashicorp/setup-terraform@v3
 
-      - name: Static checks (lint)
-        run: |
-          pipx install flake8
-          flake8 product-service || true
+    - name: Terraform init
+      working-directory: ./infra
+      run: |
+        terraform init -reconfigure \
+        -backend-config="bucket=stockwiz-tfstate" \
+        -backend-config="key=dev/terraform.tfstate" \
+        -backend-config="region=us-east-1" \
+        -backend-config="encrypt=true"
 
-          (cd api-gateway && go vet ./... || true)
-          (cd inventory-service && go vet ./... || true)
+    - name: Terraform apply
+      working-directory: ./infra
+      run: terraform apply -auto-approve -var-file="env/dev.tfvars"
 
-      - name: Run integration tests (Docker Compose)
-        run: |
-          docker compose up -d
-          sleep 20
-          docker compose ps
+    - name: Login ECR
+      id: ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-          set -e
-          curl -fsS http://localhost:8000/health
-          curl -fsS http://localhost:8001/health
-          curl -fsS http://localhost:8002/health
+    - name: Build & push full container
+      run: |
+        REG="${{ steps.ecr.outputs.registry }}"
 
-          docker compose down -v
+        docker build -t $REG/stockwiz-dev/fullstack:dev-latest ./docker-full
+        docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
-      - name: Configure AWS credentials (Dev)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
+    - name: Update ECS service
+      run: |
+        aws ecs update-service \
+          --cluster stockwiz-dev-cluster \
+          --service stockwiz-dev-svc \
+          --force-new-deployment
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      # ---------------------------------------------------------
-      # FIX 1: Terraform primero (Crea ECR repos y S3 backend)
-      # ---------------------------------------------------------
-      - name: Terraform init (Dev)
-        working-directory: ./infra
-        run: |
-          terraform init -reconfigure \
-            -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=${ENV}/terraform.tfstate" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="encrypt=true"
-
-      - name: Terraform apply (Dev infra resources)
-        working-directory: ./infra
-        run: terraform apply -auto-approve -var-file=env/dev.tfvars
-
-      # ---------------------------------------------------------
-      # Ahora que ECR YA EXISTE, recién hacemos push de imágenes
-      # ---------------------------------------------------------
-      - name: Login to ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & Push images to ECR (dev-latest)
-        run: |
-          set -e
-          REG="${{ steps.ecr.outputs.registry }}"
-
-          docker build -t $REG/stockwiz-dev/api-gateway:dev-latest ./api-gateway
-          docker push  $REG/stockwiz-dev/api-gateway:dev-latest
-
-          docker build -t $REG/stockwiz-dev/product-service:dev-latest ./product-service
-          docker push  $REG/stockwiz-dev/product-service:dev-latest
-
-          docker build -t $REG/stockwiz-dev/inventory-service:dev-latest ./inventory-service
-          docker push  $REG/stockwiz-dev/inventory-service:dev-latest
-
-      - name: Deploy ECS (Dev)
-        run: |
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dbcache \
-            --force-new-deployment
-      
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-api-gateway-svc \
-            --force-new-deployment
-      
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-product-service-svc \
-            --force-new-deployment
-      
-          aws ecs update-service \
-            --cluster ecs-fargate-cluster-dev \
-            --service dev-inventory-service-svc \
-            --force-new-deployment
 
 
   ###########################################################
@@ -248,3 +184,5 @@ jobs:
   #        aws ecs update-service --cluster ecs-cluster-prod --service prod-api-gateway-svc --force-new-deployment
   #        aws ecs update-service --cluster ecs-cluster-prod --service prod-product-service-svc --force-new-deployment
   #        aws ecs update-service --cluster ecs-cluster-prod --service prod-inventory-service-svc --force-new-deployment
+=======
+>>>>>>> develop

@@ -1,4 +1,4 @@
-name: Destroy AWS Infrastructure
+name: Destroy AWS Infrastructure (EC2)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,8 @@ on:
           - dev
           - test
           - prod
-      confirm_destroy:
+
+      confirm:
         description: 'Type "destroy" to confirm'
         required: true
         type: string
@@ -27,13 +28,13 @@ jobs:
     steps:
     - name: Validate confirmation
       run: |
-        if [ "${{ github.event.inputs.confirm_destroy }}" != "destroy" ]; then
+        if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
           echo "Destruction cancelled."
           exit 1
         fi
         echo "Confirmation OK"
 
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v3
 
     - name: Configure AWS credentials
@@ -47,7 +48,10 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Init (remote backend)
+    ###########################################################
+    # TERRAFORM INIT (REMOTE BACKEND)
+    ###########################################################
+    - name: Terraform Init
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
@@ -56,14 +60,21 @@ jobs:
           -backend-config="region=${AWS_REGION}" \
           -backend-config="encrypt=true"
 
+    ###########################################################
+    # TERRAFORM DESTROY (ALL RESOURCES)
+    ###########################################################
     - name: Terraform Destroy
       working-directory: ./infra
-      run: terraform destroy -auto-approve -var-file=env/${{ github.event.inputs.env }}.tfvars
+      run: |
+        terraform destroy -auto-approve \
+          -var-file="env/${{ github.event.inputs.env }}.tfvars" \
+          -var="api_image=placeholder" \
+          -var="postgres_image=placeholder" \
+          -var="redis_image=redis:7-alpine"
 
     - name: Destroy complete
       run: echo "Environment destroyed successfully!"
 
 
 
-    - name: Destroy complete
-      run: echo "Environment destroyed successfully!"
+
