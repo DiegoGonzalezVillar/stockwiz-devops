@@ -1,5 +1,5 @@
 resource "aws_lb" "app_lb" {
-  name               = "stockwiz-${var.subnet_id}-alb"
+  name = "${var.project_name}-${var.env}-alb"
   load_balancer_type = "application"
   subnets            = [var.subnet_id]
   security_groups    = [var.alb_sg_id]
