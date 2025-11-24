@@ -20,19 +20,21 @@ jobs:
 
     - uses: hashicorp/setup-terraform@v3
 
+    # --------------------------
+    # TERRAFORM INIT
+    # --------------------------
     - name: Terraform init
       working-directory: ./infra
       run: |
         terraform init -reconfigure \
-        -backend-config="bucket=stockwiz-tfstate" \
-        -backend-config="key=dev/terraform.tfstate" \
-        -backend-config="region=us-east-1" \
-        -backend-config="encrypt=true"
+          -backend-config="bucket=stockwiz-tfstate" \
+          -backend-config="key=dev/terraform.tfstate" \
+          -backend-config="region=us-east-1" \
+          -backend-config="encrypt=true"
 
-    - name: Terraform apply
-      working-directory: ./infra
-      run: terraform apply -auto-approve -var-file="env/dev.tfvars"
-
+    # --------------------------
+    # BUILD & PUSH
+    # --------------------------
     - name: Login ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -43,15 +45,22 @@ jobs:
 
         docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
         docker push  $REG/stockwiz-dev/fullstack:dev-latest
-    
+
+    # --------------------------
+    # TERRAFORM APPLY (con imagen final)
+    # --------------------------
     - name: Terraform apply with image
       working-directory: ./infra
-      run: terraform apply -auto-approve -var-file="env/dev.tfvars" -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
+      run: terraform apply -auto-approve \
+        -var-file="env/dev.tfvars" \
+        -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
 
+    # --------------------------
+    # UPDATE ECS
+    # --------------------------
     - name: Update ECS service
       run: |
         aws ecs update-service \
           --cluster stockwiz-dev-cluster \
           --service stockwiz-dev-svc \
           --force-new-deployment
-
