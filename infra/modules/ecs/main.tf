@@ -6,6 +6,11 @@ resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-${var.env}-cluster"
 }
 
+resource "aws_cloudwatch_log_group" "ecs" {
+  name              = "/ecs/${var.project_name}-${var.env}"
+  retention_in_days = 7
+}
+
 resource "aws_ecs_task_definition" "task" {
   family                   = "${var.project_name}-${var.env}-task"
   requires_compatibilities = ["FARGATE"]
@@ -13,17 +18,34 @@ resource "aws_ecs_task_definition" "task" {
   cpu                      = "1024"
   memory                   = "2048"
 
+  depends_on = [
+    aws_cloudwatch_log_group.ecs
+  ]
+
   execution_role_arn = data.aws_iam_role.lab_role.arn
   task_role_arn      = data.aws_iam_role.lab_role.arn
 
   container_definitions = jsonencode([
     {
-      name  = "stockwiz"
-      image = var.full_image
+      name      = "stockwiz"
+      image     = var.full_image
       essential = true
+
       portMappings = [
-        { containerPort = 8000 }
+        {
+          containerPort = 8000
+          protocol      = "tcp"
+        }
       ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-region        = var.aws_region
+          awslogs-group         = "/ecs/${var.project_name}-${var.env}"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
     }
   ])
 }
@@ -47,4 +69,5 @@ resource "aws_ecs_service" "svc" {
     container_port   = 8000
   }
 }
+
 
