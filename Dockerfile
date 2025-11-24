@@ -1,65 +1,92 @@
+###########################################
+# STAGE 1 — API GATEWAY (Go)
+###########################################
+FROM golang:1.21-alpine AS build_api
+
+WORKDIR /app
+COPY api-gateway/go.mod api-gateway/go.sum ./
+RUN apk add --no-cache git ca-certificates
+RUN go mod download
+
+COPY api-gateway/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway .
+
+
+###########################################
+# STAGE 2 — INVENTORY SERVICE (Go)
+###########################################
+FROM golang:1.21-alpine AS build_inventory
+
+WORKDIR /app
+COPY inventory-service/go.mod inventory-service/go.sum ./
+RUN apk add --no-cache git ca-certificates
+RUN go mod download
+
+COPY inventory-service/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -o inventory-service .
+
+
+###########################################
+# STAGE 3 — PRODUCT SERVICE (Python)
+###########################################
+FROM python:3.11-slim AS build_product
+
+WORKDIR /app
+COPY product-service/requirements.txt .
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+COPY product-service/ .
+
+
+###########################################
+# STAGE 4 — FINAL IMAGE (Ubuntu + Postgres + Redis)
+###########################################
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-############################
-# 1) System dependencies
-############################
+# Install system services
 RUN apt-get update && apt-get install -y \
-    build-essential \
     ca-certificates \
-    curl \
-    wget \
     python3 python3-pip python3-venv \
     postgresql postgresql-contrib \
     redis-server \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-############################
-# 2) Create app directory
-############################
 WORKDIR /app
 
-############################
-# 3) Copy API Gateway (Go)
-############################
-COPY api-gateway /app/api-gateway
-WORKDIR /app/api-gateway
-RUN go build -o api-gateway .
+###########################################
+# COPY BINARIES FROM BUILDS
+###########################################
+COPY --from=build_api       /app/api-gateway         /app/api-gateway
+COPY --from=build_inventory /app/inventory-service   /app/inventory-service
 
-############################
-# 4) Copy Product Service (Python)
-############################
-COPY product-service /app/product-service
-WORKDIR /app/product-service
-RUN pip3 install --no-cache-dir -r requirements.txt
+###########################################
+# COPY PYTHON APP FROM BUILD
+###########################################
+COPY --from=build_product /root/.local /home/appuser/.local
+COPY product-service/ /app/product-service
 
-############################
-# 5) Copy Inventory Service (Go)
-############################
-COPY inventory-service /app/inventory-service
-WORKDIR /app/inventory-service
-RUN go build -o inventory-service .
+ENV PATH="/home/appuser/.local/bin:${PATH}"
 
-############################
-# 6) Back to /app
-############################
-WORKDIR /app
-
-############################
-# 7) Postgres init + Start script
-############################
+###########################################
+# COPY START SCRIPTS + SQL INIT
+###########################################
 COPY start.sh /app/start.sh
 COPY init.sql /app/init.sql
 RUN chmod +x /app/start.sh
 
-############################
-# 8) Expose ports
-############################
-EXPOSE 8000 5432 6379
+###########################################
+# EXPOSE PORTS
+###########################################
+EXPOSE 8000 8001 8002 5432 6379
 
-############################
-# 9) Start application suite
-############################
 CMD ["/app/start.sh"]
+
+CMD ["/app/start.sh"]
+
 
