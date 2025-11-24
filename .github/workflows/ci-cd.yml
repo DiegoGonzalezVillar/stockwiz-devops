@@ -9,20 +9,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    #############################################
+    # CHECKOUT
+    #############################################
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - uses: aws-actions/configure-aws-credentials@v4
+    #############################################
+    # AWS CREDENTIALS
+    #############################################
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
-    - uses: hashicorp/setup-terraform@v3
-
-    # --------------------------
+    #############################################
     # TERRAFORM INIT
-    # --------------------------
+    #############################################
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
     - name: Terraform init
       working-directory: ./infra
       run: |
@@ -32,32 +41,38 @@ jobs:
           -backend-config="region=us-east-1" \
           -backend-config="encrypt=true"
 
-    # --------------------------
-    # BUILD & PUSH
-    # --------------------------
-    - name: Login ECR
+    #############################################
+    # ECR LOGIN
+    #############################################
+    - name: Login to ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build & push full container
+    #############################################
+    # BUILD & PUSH FULLSTACK IMAGE
+    #############################################
+    - name: Build & push fullstack container
       run: |
         REG="${{ steps.ecr.outputs.registry }}"
-
+        
+        # Build
         docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
-        docker push  $REG/stockwiz-dev/fullstack:dev-latest
 
-    # --------------------------
-    # TERRAFORM APPLY (con imagen final)
-    # --------------------------
+        # Push
+        docker push $REG/stockwiz-dev/fullstack:dev-latest
+
+    #############################################
+    # TERRAFORM APPLY (CON IMAGEN REAL)
+    #############################################
     - name: Terraform apply with image
       working-directory: ./infra
       run: terraform apply -auto-approve \
         -var-file="env/dev.tfvars" \
         -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
 
-    # --------------------------
-    # UPDATE ECS
-    # --------------------------
+    #############################################
+    # ECS DEPLOY
+    #############################################
     - name: Update ECS service
       run: |
         aws ecs update-service \
