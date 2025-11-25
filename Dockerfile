@@ -57,8 +57,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 7) Copiar SQL + Start script
 ###############################
 WORKDIR /app
-COPY docker-full/init.sql /app/init.sql
-COPY docker-full/start.sh /app/start.sh
+COPY init.sql /app/init.sql
+COPY start.sh /app/start.sh
 
 RUN chmod +x /app/start.sh
 
@@ -71,3 +71,4 @@ EXPOSE 8000
 # 9) Entry point
 ###############################
 CMD ["/app/start.sh"]
+
