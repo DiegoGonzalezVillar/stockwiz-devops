@@ -28,18 +28,18 @@ FROM alpine:3.18
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
-# PASO ÚNICO: Instalar TODAS las dependencias de ejecución (Supervisor, Redis, Postgres).
-# Se consolida la instalación y se usa el nombre genérico 'supervisor'.
+# PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
+# Se utilizan nombres versionados (PostgreSQL 15) y específicos (py3-supervisor)
+# para asegurar que 'apk' encuentre los paquetes en Alpine 3.18.
 # --------------------------------------------------------------------------
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories \
-    && apk update \
+RUN apk update \
     && apk add --no-cache \
     python3 py3-pip \
-    supervisor \
+    py3-supervisor \
     bash \
     redis \
-    postgresql-server \
-    postgresql-client \
+    postgresql15-server \
+    postgresql15-client \
     && rm -rf /var/cache/apk/*
 
 ############################################
