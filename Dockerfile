@@ -29,16 +29,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
 # PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
-# Se usa una única capa RUN para la atomicidad, y se usa la versión 16 de Postgres 
-# y el nombre oficial de Supervisor (py3-supervisor) para Alpine 3.18.
+# SOLUCIÓN DEFINITIVA: Se revierte a nombres genéricos (que existen en 'community') 
+# y se usa el flag --repository para forzar la búsqueda en el repositorio Community.
 # --------------------------------------------------------------------------
 RUN apk update && apk add --no-cache \
     python3 py3-pip \
-    py3-supervisor \
+    supervisor \
     bash \
     redis \
-    postgresql16-server \
-    postgresql16-client \
+    postgresql-server \
+    postgresql-client \
+    --repository "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" \
     && rm -rf /var/cache/apk/*
 
 ############################################
