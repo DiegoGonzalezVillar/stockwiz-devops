@@ -26,21 +26,17 @@ RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin /app/inventor
 FROM alpine:3.18
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PG_VERSION=14.9-r0
+# Eliminamos la variable PG_VERSION ya que usaremos paquetes sin versión.
 
 # Instalamos solo las dependencias de producción:
-# - python3 y pip para el servicio 'product'.
-# - supervisor (ajustado a py3-supervisor).
-# - postgresql (ajustado a postgresql14-server y postgresql14).
-# - redis para el servidor de caché.
-# - bash es necesario para el script start.sh.
+# Utilizamos nombres de paquetes genéricos para asegurar la compatibilidad con Alpine 3.18.
 RUN apk update && apk add --no-cache \
     python3 py3-pip \
-    py3-supervisor \
+    supervisor \
     bash \
     redis \
-    postgresql14-server \
-    postgresql14 \
+    postgresql-server \
+    postgresql \
     && rm -rf /var/cache/apk/*
 
 ############################################
@@ -83,9 +79,3 @@ EXPOSE 8000
 
 # El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
-
-
-
-
-
-
