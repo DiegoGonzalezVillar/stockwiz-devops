@@ -26,22 +26,27 @@ RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin /app/inventor
 FROM alpine:3.18
 
 ENV DEBIAN_FRONTEND=noninteractive
-# Eliminamos la variable PG_VERSION ya que usaremos paquetes sin versión.
 
-# Instalamos solo las dependencias de producción:
 # --------------------------------------------------------------------------
-# CORRECCIÓN CLAVE: Agregamos el repositorio 'community' para encontrar paquetes como 
-# postgresql-server y supervisor, que a menudo no están en el repositorio 'main' por defecto.
+# PASO 1: Instalar dependencias base, incluyendo supervisor y redis.
+# Agregamos el repositorio 'community' explícitamente para py3-supervisor y otros.
 # --------------------------------------------------------------------------
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories \
     && apk update \
     && apk add --no-cache \
     python3 py3-pip \
-    supervisor \
+    py3-supervisor \
     bash \
     redis \
+    && rm -rf /var/cache/apk/*
+
+# --------------------------------------------------------------------------
+# PASO 2: Instalar PostgreSQL (Server y Client).
+# Esto aísla el error de PostgreSQL y usa los nombres de paquete genéricos que deben funcionar.
+# --------------------------------------------------------------------------
+RUN apk update && apk add --no-cache \
     postgresql-server \
-    postgresql \
+    postgresql-client \
     && rm -rf /var/cache/apk/*
 
 ############################################
