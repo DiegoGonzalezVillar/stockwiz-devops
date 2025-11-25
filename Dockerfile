@@ -40,8 +40,10 @@ RUN chmod +x /app/start.sh
 ############################################
 # BUILD GO BINARIES
 ############################################
-RUN cd /app/api-gateway && go build -o /app/api-gateway
-RUN cd /app/inventory-service && go build -o /app/inventory-service
+
+RUN cd /app/api-gateway && go build -o /app/api-gateway/api-bin
+RUN cd /app/inventory-service && go build -o /app/inventory-service/inventory-bin
+
 
 ############################################
 # INSTALL PYTHON DEPENDENCIES
@@ -57,6 +59,7 @@ EXPOSE 8000
 # ENTRYPOINT VIA SUPERVISOR
 ############################################
 CMD ["/app/start.sh"]
+
 
 
 
