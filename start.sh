@@ -17,7 +17,8 @@ INIT_SQL="/app/init.sql"
 DB_NAME="microservices_db"
 DB_USER="admin"
 DB_PASS="admin123"
-DB_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME" # URL para prueba
+# CORRECCIÓN: Se añade 'sslmode=disable' para evitar que los clientes de Go fallen al conectarse sin SSL.
+DB_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME?sslmode=disable" 
 
 # Verificar si la base de datos ya está inicializada (El directorio 'main' es estándar en Debian)
 if [ ! -s "$PGDATA_DIR/main/PG_VERSION" ]; then
@@ -74,13 +75,13 @@ export REDIS_URL="redis://localhost:6379"
 
 /app/inventory-service/inventory-bin
 
-# Si el comando anterior tiene éxito (que es lo que queremos), el script no continuará aquí.
-# Si el comando anterior falla (que es lo que está pasando), imprimirá el error
-# y el script terminará (debido a set -e), mostrando el mensaje de error de Go.
+# Si el comando anterior tiene éxito, el script continuará hasta el punto 3 (Supervisor).
+# Si el comando anterior falla (que es lo que estaba pasando), imprimirá el error
+# y el script terminará (debido a set -e).
 
-# --- 3. SI LA PRUEBA TIENE ÉXITO, INICIAR SUPERVISORD ---
-# Si el script llega aquí, el binario falló. Si no falla, no llegamos a Supervisor.
-echo "ERROR FATAL: El binario de inventario falló inmediatamente."
-echo "Por favor, revise el log de error anterior de Go para obtener la causa."
-# En un escenario normal, Supervisor se iniciaría aquí:
-# exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+# --- 3. INICIAR SUPERVISORD (Asumiendo que la prueba fue exitosa) ---
+echo "===================================="
+echo "PRUEBA DE INVENTORY EXITOSA. Iniciando Supervisor."
+echo "===================================="
+# Si el script llega aquí, el binario de inventario arrancó con éxito.
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
