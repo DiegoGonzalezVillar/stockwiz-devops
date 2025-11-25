@@ -29,8 +29,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Eliminamos la variable PG_VERSION ya que usaremos paquetes sin versión.
 
 # Instalamos solo las dependencias de producción:
-# Utilizamos nombres de paquetes genéricos para asegurar la compatibilidad con Alpine 3.18.
-RUN apk update && apk add --no-cache \
+# --------------------------------------------------------------------------
+# CORRECCIÓN CLAVE: Agregamos el repositorio 'community' para encontrar paquetes como 
+# postgresql-server y supervisor, que a menudo no están en el repositorio 'main' por defecto.
+# --------------------------------------------------------------------------
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories \
+    && apk update \
+    && apk add --no-cache \
     python3 py3-pip \
     supervisor \
     bash \
