@@ -39,7 +39,7 @@ COPY api-gateway/ /app/api-gateway/
 COPY inventory-service/ /app/inventory-service/
 COPY product-service/ /app/product-service/
 
-RUN dos2unix /app/start.sh && chmod +x /app/start.sh
+RUN chmod +x /app/start.sh
 
 ############################################
 # COMPILAR GO SERVICES
@@ -61,3 +61,4 @@ EXPOSE 8000
 # INICIO CON SUPERVISORD
 ############################################
 CMD ["/app/start.sh"]
+
