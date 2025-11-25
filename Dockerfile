@@ -1,6 +1,6 @@
 # --------------------------------------------------------------------------
 # ETAPA 1: BUILD (Compilación de binarios Go)
-# Usamos una imagen de Go basada en Alpine para mantener la coherencia
+# Usamos una imagen de Go basada en Alpine (porque es pequeña para el build)
 # --------------------------------------------------------------------------
 FROM golang:1.21-alpine AS builder
 
@@ -14,39 +14,36 @@ COPY api-gateway/ /app/api-gateway/
 COPY inventory-service/ /app/inventory-service/
 
 # Compilar binarios de Go (usando CGO_ENABLED=0 para binarios estáticos más portables)
-# Esto asegura que los binarios funcionarán en la imagen final Alpine
+# Esto asegura que los binarios funcionarán en la imagen final Debian
 RUN CGO_ENABLED=0 go build -o /app/api-gateway/api-bin /app/api-gateway
 RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin /app/inventory-service
 
 
 # --------------------------------------------------------------------------
-# ETAPA 2: FINAL (Entorno de Ejecución Mínimo)
-# Usamos una imagen base Alpine para el entorno de ejecución, la más pequeña posible.
+# ETAPA 2: FINAL (Entorno de Ejecución Estable - Debian Slim)
+# Usamos Debian Slim para evitar los problemas de APK con Postgres/Supervisor.
 # --------------------------------------------------------------------------
-FROM alpine:3.18
+FROM debian:bullseye-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
-# PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
-# Se usa el flag --repository en 'apk update' para cargar el repositorio Community 
-# antes de intentar instalar los paquetes.
+# PASO ÚNICO: Instalar TODAS las dependencias de ejecución usando APT.
 # --------------------------------------------------------------------------
-RUN apk update --repository "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" \
-    && apk add --no-cache \
-    python3 py3-pip \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip \
     supervisor \
     bash \
-    redis \
-    postgresql-server \
-    postgresql-client \
-    && rm -rf /var/cache/apk/*
+    redis-server \
+    # Paquetes estables de Debian
+    postgresql-13 postgresql-client-13 \
+    # Limpieza
+    && rm -rf /var/lib/apt/lists/*
 
 ############################################
 # CONFIGURACIÓN DE USUARIOS Y DIRECTORIOS
 ############################################
-# Crear el usuario 'postgres' que necesita el servidor de PostgreSQL
-RUN adduser -D -h /home/postgres postgres
+# La instalación de postgresql-13 ya crea el usuario 'postgres' en Debian.
 
 WORKDIR /app
 
@@ -54,7 +51,7 @@ RUN mkdir -p /app/logs \
     && chmod -R 777 /app/logs
 
 # Inicializar el directorio de datos de PostgreSQL para asegurar permisos correctos
-RUN mkdir -p /var/lib/postgresql/data \
+RUN mkdir -p /var/lib/postgresql/data/main \
     && chown -R postgres:postgres /var/lib/postgresql/data
 
 ############################################
@@ -82,3 +79,7 @@ EXPOSE 8000
 
 # El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
+
+# El ENTRYPOINT ejecuta el script de inicialización y supervisor
+CMD ["/app/start.sh"]
+
