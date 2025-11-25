@@ -29,17 +29,20 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
 # PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
-# Agregamos el repositorio 'community' y usamos nombres de paquete genéricos (PostgreSQL, Supervisor).
+# Se instalan primero los paquetes de Python, bash y redis, 
+# y luego se instalan los paquetes versionados de PostgreSQL que suelen estar en el repositorio 'community'.
 # --------------------------------------------------------------------------
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories \
-    && apk update \
-    && apk add --no-cache \
+RUN apk update && apk add --no-cache \
     python3 py3-pip \
     supervisor \
     bash \
-    redis \
-    postgresql-server \
-    postgresql-client \
+    redis
+
+# Instalar PostgreSQL versionado y su cliente, ya que los nombres genéricos fallaron.
+# El error indica que 'postgresql-server' no existe, por lo que usaremos la versión 15.
+RUN apk add --no-cache \
+    postgresql15-server \
+    postgresql15-client \
     && rm -rf /var/cache/apk/*
 
 ############################################
