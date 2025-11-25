@@ -30,17 +30,17 @@ ENV PG_VERSION=14.9-r0
 
 # Instalamos solo las dependencias de producción:
 # - python3 y pip para el servicio 'product'.
-# - supervisor para orquestación.
-# - postgresql y postgresql-client para el servidor de base de datos.
+# - supervisor (ajustado a py3-supervisor).
+# - postgresql (ajustado a postgresql14-server y postgresql14).
 # - redis para el servidor de caché.
 # - bash es necesario para el script start.sh.
 RUN apk update && apk add --no-cache \
     python3 py3-pip \
-    supervisor \
+    py3-supervisor \
     bash \
     redis \
-    postgresql-server \
-    postgresql \
+    postgresql14-server \
+    postgresql14 \
     && rm -rf /var/cache/apk/*
 
 ############################################
@@ -83,7 +83,6 @@ EXPOSE 8000
 
 # El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
-
 
 
 
