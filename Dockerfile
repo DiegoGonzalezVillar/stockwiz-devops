@@ -28,23 +28,16 @@ FROM alpine:3.18
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
-# PASO 1: Instalar dependencias base, incluyendo supervisor y redis.
-# Agregamos el repositorio 'community' explícitamente para py3-supervisor y otros.
+# PASO ÚNICO: Instalar TODAS las dependencias de ejecución (Supervisor, Redis, Postgres).
+# Se consolida la instalación y se usa el nombre genérico 'supervisor'.
 # --------------------------------------------------------------------------
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories \
     && apk update \
     && apk add --no-cache \
     python3 py3-pip \
-    py3-supervisor \
+    supervisor \
     bash \
     redis \
-    && rm -rf /var/cache/apk/*
-
-# --------------------------------------------------------------------------
-# PASO 2: Instalar PostgreSQL (Server y Client).
-# Esto aísla el error de PostgreSQL y usa los nombres de paquete genéricos que deben funcionar.
-# --------------------------------------------------------------------------
-RUN apk update && apk add --no-cache \
     postgresql-server \
     postgresql-client \
     && rm -rf /var/cache/apk/*
