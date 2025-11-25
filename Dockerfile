@@ -29,17 +29,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
 # PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
-# SOLUCIÓN DEFINITIVA: Se revierte a nombres genéricos (que existen en 'community') 
-# y se usa el flag --repository para forzar la búsqueda en el repositorio Community.
+# Se usa el flag --repository en 'apk update' para cargar el repositorio Community 
+# antes de intentar instalar los paquetes.
 # --------------------------------------------------------------------------
-RUN apk update && apk add --no-cache \
+RUN apk update --repository "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" \
+    && apk add --no-cache \
     python3 py3-pip \
     supervisor \
     bash \
     redis \
     postgresql-server \
     postgresql-client \
-    --repository "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" \
     && rm -rf /var/cache/apk/*
 
 ############################################
