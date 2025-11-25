@@ -29,20 +29,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # --------------------------------------------------------------------------
 # PASO ÚNICO: Instalar TODAS las dependencias de ejecución.
-# Se instalan primero los paquetes de Python, bash y redis, 
-# y luego se instalan los paquetes versionados de PostgreSQL que suelen estar en el repositorio 'community'.
+# Se usa una única capa RUN para la atomicidad, y se usa la versión 16 de Postgres 
+# y el nombre oficial de Supervisor (py3-supervisor) para Alpine 3.18.
 # --------------------------------------------------------------------------
 RUN apk update && apk add --no-cache \
     python3 py3-pip \
-    supervisor \
+    py3-supervisor \
     bash \
-    redis
-
-# Instalar PostgreSQL versionado y su cliente, ya que los nombres genéricos fallaron.
-# El error indica que 'postgresql-server' no existe, por lo que usaremos la versión 15.
-RUN apk add --no-cache \
-    postgresql15-server \
-    postgresql15-client \
+    redis \
+    postgresql16-server \
+    postgresql16-client \
     && rm -rf /var/cache/apk/*
 
 ############################################
