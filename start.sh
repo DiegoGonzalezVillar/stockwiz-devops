@@ -17,6 +17,7 @@ INIT_SQL="/app/init.sql"
 DB_NAME="microservices_db"
 DB_USER="admin"
 DB_PASS="admin123"
+DB_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME" # URL para prueba
 
 # Verificar si la base de datos ya está inicializada (El directorio 'main' es estándar en Debian)
 if [ ! -s "$PGDATA_DIR/main/PG_VERSION" ]; then
@@ -54,7 +55,32 @@ if [ ! -s "$PGDATA_DIR/main/PG_VERSION" ]; then
     echo "PostgreSQL initialization complete."
 fi
 
-# --- 2. INICIO DE SUPERVISORD ---
-echo "Starting supervisord..."
-# En Debian, supervisord a menudo está en /usr/bin
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+# --- 2. PRUEBA DE DEPURACIÓN (INVENTORY) ---
+# Ejecutamos PostgreSQL en segundo plano de forma permanente antes de Supervisor,
+# para garantizar que el servicio de inventario pueda conectarse para la depuración.
+echo "Starting PostgreSQL for execution..."
+su - postgres -c "$PG_BIN_DIR/pg_ctl -D $PGDATA_DIR/main -o '-c listen_addresses=localhost' start > /app/logs/postgres-main.log 2>&1"
+
+# Damos 5 segundos extra para que el servidor de postgres esté realmente listo
+sleep 5 
+
+echo "===================================="
+echo "DEBUG: Ejecutando Inventory Service directamente para capturar el error."
+echo "===================================="
+# Ejecutamos el binario Inventory con sus variables de entorno.
+# La salida (stdout/stderr) irá directamente a los logs del contenedor.
+export DATABASE_URL="$DB_URL"
+export REDIS_URL="redis://localhost:6379"
+
+/app/inventory-service/inventory-bin
+
+# Si el comando anterior tiene éxito (que es lo que queremos), el script no continuará aquí.
+# Si el comando anterior falla (que es lo que está pasando), imprimirá el error
+# y el script terminará (debido a set -e), mostrando el mensaje de error de Go.
+
+# --- 3. SI LA PRUEBA TIENE ÉXITO, INICIAR SUPERVISORD ---
+# Si el script llega aquí, el binario falló. Si no falla, no llegamos a Supervisor.
+echo "ERROR FATAL: El binario de inventario falló inmediatamente."
+echo "Por favor, revise el log de error anterior de Go para obtener la causa."
+# En un escenario normal, Supervisor se iniciaría aquí:
+# exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
