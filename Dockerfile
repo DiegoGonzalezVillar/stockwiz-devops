@@ -12,12 +12,16 @@ RUN apt-get update && apt-get install -y \
     curl git ca-certificates wget \
     build-essential \
     golang-go \
-    postgresql-14 postgresql-client-14 postgresql-contrib-14 \
+    postgresql-14 postgresql-client-14 \
+    rsyslog \
     && rm -rf /var/lib/apt/lists/*
 
 ############################################
-# CREATE APP DIRS
+# CREATE APP DIRS AND POSTGRES USER
 ############################################
+# Asegura que el usuario 'postgres' esté creado
+RUN useradd -ms /bin/bash postgres 
+
 WORKDIR /app
 
 RUN mkdir -p /app/logs \
@@ -26,6 +30,7 @@ RUN mkdir -p /app/logs \
 ############################################
 # COPY FILES
 ############################################
+# El archivo start.sh debe ser ejecutable
 COPY start.sh /app/start.sh
 COPY init.sql /app/init.sql
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -53,12 +58,15 @@ RUN pip3 install --no-cache-dir -r /app/product-service/requirements.txt
 ############################################
 # EXPOSE ONLY API PORT
 ############################################
+# Se expone solo el puerto de entrada principal
 EXPOSE 8000
 
 ############################################
-# ENTRYPOINT VIA SUPERVISOR
+# ENTRYPOINT VIA START.SH (Init & Supervisor)
 ############################################
+# El inicio pasa por start.sh para inicializar PG
 CMD ["/app/start.sh"]
+
 
 
 
