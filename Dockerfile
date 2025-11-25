@@ -1,74 +1,79 @@
-###############################
-# BASE: Ubuntu + PostgreSQL + Redis + Python + Go
-###############################
+############################################
+# BASE: Ubuntu con herramientas necesarias
+############################################
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-###############################
-# 1) Instalar dependencias base
-###############################
+############################################
+# Actualizar e instalar dependencias
+############################################
 RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    git \
-    ca-certificates \
-    python3 \
-    python3-pip \
-    postgresql \
-    postgresql-contrib \
+    python3 python3-pip python3-venv \
     redis-server \
-    golang \
+    postgresql postgresql-contrib \
+    wget curl git build-essential ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-###############################
-# 2) Crear usuario postgres (si no existe)
-###############################
-RUN useradd -m postgres || true
-
-###############################
-# 3) Crear estructura de trabajo
-###############################
+############################################
+# DIRECTORIO APP
+############################################
 WORKDIR /app
 
-###############################
-# 4) Copiar API Gateway (Go)
-###############################
-COPY api-gateway/ ./api-gateway/
-
-WORKDIR /app/api-gateway
-RUN go build -o api-gateway .
-
-###############################
-# 5) Copiar Inventory Service (Go)
-###############################
-WORKDIR /app/inventory-service
-COPY inventory-service/ .
-RUN go build -o inventory-service .
-
-###############################
-# 6) Copiar Product Service (Python)
-###############################
-WORKDIR /app/product-service
-COPY product-service/ .
-RUN pip install --no-cache-dir -r requirements.txt
-
-###############################
-# 7) Copiar SQL + Start script
-###############################
-WORKDIR /app
-COPY init.sql /app/init.sql
+############################################
+# COPIAR ARCHIVOS DEL PROYECTO
+############################################
 COPY start.sh /app/start.sh
+COPY init.sql /app/init.sql
 
+# API Gateway
+RUN mkdir -p /app/api-gateway
+COPY api-gateway/ /app/api-gateway/
+
+# Inventory Service
+RUN mkdir -p /app/inventory-service
+COPY inventory-service/ /app/inventory-service/
+
+# Product Service
+RUN mkdir -p /app/product-service
+COPY product-service/ /app/product-service/
+
+############################################
+# COMPILAR SERVICIOS (Go + Python)
+############################################
+
+### API Gateway (Go)
+RUN cd /app/api-gateway && \
+    go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -o /app/api-gateway/api-gateway .
+
+### Inventory Service (Go)
+RUN cd /app/inventory-service && \
+    go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -o /app/inventory-service/inventory-service .
+
+### Product Service (Python)
+RUN pip install --no-cache-dir -r /app/product-service/requirements.txt
+
+############################################
+# PostgreSQL CONFIG
+############################################
+RUN sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/g" \
+    /etc/postgresql/14/main/postgresql.conf
+
+############################################
+# FIX PERMISOS + PERMISOS DE EJECUCIÓN
+############################################
 RUN chmod +x /app/start.sh
 
-###############################
-# 8) Exponer puerto de API Gateway
-###############################
+############################################
+# EXPONER SOLO PUERTO 8000 (API Gateway)
+############################################
 EXPOSE 8000
 
-###############################
-# 9) Entry point
-###############################
+############################################
+# COMANDO DE INICIO
+############################################
 CMD ["/app/start.sh"]
+
 
