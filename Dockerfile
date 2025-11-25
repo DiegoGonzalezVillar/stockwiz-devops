@@ -2,9 +2,6 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-############################################
-# INSTALL SYSTEM DEPENDENCIES
-############################################
 RUN apt-get update && apt-get install -y \
     python3 python3-pip \
     redis-server \
@@ -15,9 +12,6 @@ RUN apt-get update && apt-get install -y \
     postgresql postgresql-contrib \
     && rm -rf /var/lib/apt/lists/*
 
-############################################
-# SETUP APP FOLDERS
-############################################
 WORKDIR /app
 
 COPY start.sh /app/start.sh
@@ -30,17 +24,17 @@ COPY product-service/ /app/product-service/
 
 RUN chmod +x /app/start.sh
 
-############################################
-# BUILD GO SERVICES (binarios fuera de carpetas)
-############################################
-RUN cd /app/api-gateway && go build -o /app/api-gateway.bin
-RUN cd /app/inventory-service && go build -o /app/inventory-service.bin
+# BUILD GO BINARIES IN THEIR DIRECTORIES
+RUN cd /app/api-gateway && go build -o api-gateway
+RUN cd /app/inventory-service && go build -o inventory-service
 
-############################################
-# INSTALL PYTHON DEPENDENCIES
-############################################
+# PYTHON
 RUN pip3 install --no-cache-dir -r /app/product-service/requirements.txt
 
 EXPOSE 8000
 
 CMD ["/app/start.sh"]
+
+
+CMD ["/app/start.sh"]
+
