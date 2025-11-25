@@ -1,70 +1,87 @@
-FROM ubuntu:22.04
+# --------------------------------------------------------------------------
+# ETAPA 1: BUILD (Compilación de binarios Go)
+# Usamos una imagen de Go basada en Alpine para mantener la coherencia
+# --------------------------------------------------------------------------
+FROM golang:1.21-alpine AS builder
+
+# Instalar dependencias necesarias para la compilación (si aplica)
+RUN apk update && apk add --no-cache git build-base 
+
+WORKDIR /app
+
+# Copiar directorios de servicios Go
+COPY api-gateway/ /app/api-gateway/
+COPY inventory-service/ /app/inventory-service/
+
+# Compilar binarios de Go (usando CGO_ENABLED=0 para binarios estáticos más portables)
+# Esto asegura que los binarios funcionarán en la imagen final Alpine
+RUN CGO_ENABLED=0 go build -o /app/api-gateway/api-bin /app/api-gateway
+RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin /app/inventory-service
+
+
+# --------------------------------------------------------------------------
+# ETAPA 2: FINAL (Entorno de Ejecución Mínimo)
+# Usamos una imagen base Alpine para el entorno de ejecución, la más pequeña posible.
+# --------------------------------------------------------------------------
+FROM alpine:3.18
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PG_VERSION=14.9-r0
 
-############################################
-# INSTALL SYSTEM DEPENDENCIES
-############################################
-RUN apt-get update && apt-get install -y \
-    python3 python3-pip \
-    redis-server \
+# Instalamos solo las dependencias de producción:
+# - python3 y pip para el servicio 'product'.
+# - supervisor para orquestación.
+# - postgresql y postgresql-client para el servidor de base de datos.
+# - redis para el servidor de caché.
+# - bash es necesario para el script start.sh.
+RUN apk update && apk add --no-cache \
+    python3 py3-pip \
     supervisor \
-    curl git ca-certificates wget \
-    build-essential \
-    golang-go \
-    postgresql-14 postgresql-client-14 \
-    rsyslog \
-    && rm -rf /var/lib/apt/lists/*
+    bash \
+    redis \
+    postgresql-server \
+    postgresql-client \
+    && rm -rf /var/cache/apk/*
 
 ############################################
-# CREATE APP DIRS AND POSTGRES USER
+# CONFIGURACIÓN DE USUARIOS Y DIRECTORIOS
 ############################################
-# Asegura que el usuario 'postgres' esté creado
-RUN useradd -ms /bin/bash postgres 
+# Crear el usuario 'postgres' que necesita el servidor de PostgreSQL
+RUN adduser -D -h /home/postgres postgres
 
 WORKDIR /app
 
 RUN mkdir -p /app/logs \
     && chmod -R 777 /app/logs
 
+# Inicializar el directorio de datos de PostgreSQL para asegurar permisos correctos
+RUN mkdir -p /var/lib/postgresql/data \
+    && chown -R postgres:postgres /var/lib/postgresql/data
+
 ############################################
-# COPY FILES
+# COPIAR ARCHIVOS DE CONFIGURACIÓN Y BINARIOS
 ############################################
-# El archivo start.sh debe ser ejecutable
 COPY start.sh /app/start.sh
 COPY init.sql /app/init.sql
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Copy microservices
-COPY api-gateway/ /app/api-gateway/
-COPY inventory-service/ /app/inventory-service/
+# Copiar el servicio Python y sus requisitos
 COPY product-service/ /app/product-service/
 
+# Copiar los binarios de Go compilados desde la etapa 'builder'
+COPY --from=builder /app/api-gateway/api-bin /app/api-gateway/api-bin
+COPY --from=builder /app/inventory-service/inventory-bin /app/inventory-service/inventory-bin
+
+# Permisos
 RUN chmod +x /app/start.sh
-
-############################################
-# BUILD GO BINARIES
-############################################
-
-RUN cd /app/api-gateway && go build -o /app/api-gateway/api-bin
-RUN cd /app/inventory-service && go build -o /app/inventory-service/inventory-bin
-
-
-############################################
-# INSTALL PYTHON DEPENDENCIES
-############################################
 RUN pip3 install --no-cache-dir -r /app/product-service/requirements.txt
 
 ############################################
-# EXPOSE ONLY API PORT
+# PUERTO Y PUNTO DE ENTRADA
 ############################################
-# Se expone solo el puerto de entrada principal
 EXPOSE 8000
 
-############################################
-# ENTRYPOINT VIA START.SH (Init & Supervisor)
-############################################
-# El inicio pasa por start.sh para inicializar PG
+# El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
 
 
