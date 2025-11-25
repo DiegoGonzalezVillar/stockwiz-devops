@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 ############################################
-# INSTALL DEPENDENCIES
+# INSTALL SYSTEM DEPENDENCIES
 ############################################
 RUN apt-get update && apt-get install -y \
     python3 python3-pip \
@@ -16,14 +16,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 ############################################
-# SETUP WORKDIR
+# CREATE APP DIRS
 ############################################
 WORKDIR /app
 
+RUN mkdir -p /app/logs \
+    && chmod -R 777 /app/logs
+
+############################################
+# COPY FILES
+############################################
 COPY start.sh /app/start.sh
 COPY init.sql /app/init.sql
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Copy microservices
 COPY api-gateway/ /app/api-gateway/
 COPY inventory-service/ /app/inventory-service/
 COPY product-service/ /app/product-service/
@@ -33,8 +40,8 @@ RUN chmod +x /app/start.sh
 ############################################
 # BUILD GO BINARIES
 ############################################
-RUN cd /app/api-gateway && go build -o /app/api-gateway-bin
-RUN cd /app/inventory-service && go build -o /app/inventory-service-bin
+RUN cd /app/api-gateway && go build -o /app/api-gateway
+RUN cd /app/inventory-service && go build -o /app/inventory-service
 
 ############################################
 # INSTALL PYTHON DEPENDENCIES
@@ -42,17 +49,15 @@ RUN cd /app/inventory-service && go build -o /app/inventory-service-bin
 RUN pip3 install --no-cache-dir -r /app/product-service/requirements.txt
 
 ############################################
-# MOVE BINARIES TO SIMPLE PATHS
-############################################
-RUN mv /app/api-gateway-bin /app/api-gateway \
- && mv /app/inventory-service-bin /app/inventory-service
-
-############################################
-# RUN FULLSTACK
+# EXPOSE ONLY API PORT
 ############################################
 EXPOSE 8000
 
+############################################
+# ENTRYPOINT VIA SUPERVISOR
+############################################
 CMD ["/app/start.sh"]
+
 
 
 
