@@ -56,11 +56,29 @@ if [ ! -s "$PGDATA_DIR/main/PG_VERSION" ]; then
     echo "PostgreSQL initialization complete."
 fi
 
-# --- 2. PREPARACIÓN DE ENTORNO Y ARRANQUE DE SUPERVISOR ---
-# La variable DB_URL ya incluye sslmode=disable.
+# --- 2. PRUEBA DE DEPURACIÓN (PRODUCT SERVICE - PYTHON) ---
+# Ejecutamos PostgreSQL y Redis en segundo plano para la prueba.
+echo "Starting PostgreSQL permanently..."
+su - postgres -c "$PG_BIN_DIR/pg_ctl -D $PGDATA_DIR/main -o '-c listen_addresses=localhost' start > /app/logs/postgres-main.log 2>&1 &"
+sleep 5 # Esperar a que Postgres esté listo
+
+echo "Starting Redis permanently..."
+/usr/bin/redis-server &
+sleep 2 # Esperar a que Redis esté listo
+
+echo "===================================="
+echo "DEBUG: Ejecutando Product Service (Python) directamente para capturar el error."
+echo "===================================="
+# Exportamos las variables de entorno necesarias
 export DATABASE_URL="$DB_URL"
-# CORRECCIÓN FINAL: Se usa 'localhost:6379' sin el prefijo 'redis://'.
 export REDIS_URL="localhost:6379"
 
-echo "Starting supervisord..."
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+# Ejecutamos el script de Python. Si falla, el error (stack trace) se imprimirá aquí.
+python3 /app/product-service/main.py
+
+# Si el script llega aquí, el servicio Product arrancó con éxito.
+echo "===================================="
+echo "PRUEBA DE PRODUCT EXITOSA (debería fallar para ver el error)."
+echo "===================================="
+# Dejamos un comando de larga duración para mantener el contenedor abierto después de la prueba
+tail -f /dev/null
