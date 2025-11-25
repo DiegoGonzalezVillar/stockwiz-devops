@@ -15,8 +15,17 @@ COPY inventory-service/ /app/inventory-service/
 
 # Compilar binarios de Go (usando CGO_ENABLED=0 para binarios estáticos más portables)
 # Esto asegura que los binarios funcionarán en la imagen final Debian
-RUN CGO_ENABLED=0 go build -o /app/api-gateway/api-bin /app/api-gateway
-RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin /app/inventory-service
+
+# Compilar API Gateway (Entrar al directorio para encontrar go.mod)
+WORKDIR /app/api-gateway
+RUN CGO_ENABLED=0 go build -o /app/api-gateway/api-bin .
+
+# Compilar Inventory Service (Entrar al directorio para encontrar go.mod)
+WORKDIR /app/inventory-service
+RUN CGO_ENABLED=0 go build -o /app/inventory-service/inventory-bin .
+
+# Resetear el WORKDIR para el COPY posterior
+WORKDIR /app
 
 
 # --------------------------------------------------------------------------
@@ -79,7 +88,6 @@ EXPOSE 8000
 
 # El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
-
-# El ENTRYPOINT ejecuta el script de inicialización y supervisor
 CMD ["/app/start.sh"]
+
 
