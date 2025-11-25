@@ -40,7 +40,7 @@ RUN apk update && apk add --no-cache \
     bash \
     redis \
     postgresql-server \
-    postgresql-client \
+    postgresql \
     && rm -rf /var/cache/apk/*
 
 ############################################
