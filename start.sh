@@ -5,7 +5,7 @@ echo "===================================="
 echo " STARTING FULLSTACK CONTAINER SETUP"
 echo "===================================="
 
-# Crear directorios de logs si no existen
+# Crear directorios de logs si no existen y ajustar permisos
 mkdir -p /app/logs
 chmod -R 777 /app/logs
 
@@ -15,49 +15,72 @@ PG_BIN_DIR="/usr/lib/postgresql/13/bin"
 INIT_SQL="/app/init.sql"
 
 # --- OBTENCIÓN DE VARIABLES CRÍTICAS ---
-# Estos valores DEBEN ser inyectados por ECS (ya sea como environment o secrets)
+# Los valores seguros (DB_PASSWORD, INVENTORY_API_KEY) vienen inyectados por ECS (Secrets Manager).
+
+# Base de Datos
 DB_NAME="${DB_NAME:-microservices_db}"
 DB_USER="${DB_USER:-admin}"
-# >>>>>>> CAMBIO CRÍTICO: USAR LA VARIABLE DE ENTORNO SEGURA INYECTADA POR ECS <<<<<<<
-# La variable DB_PASSWORD viene de AWS Secrets Manager.
+# CONTRASENA SEGURA: Usa el valor inyectado por ECS/Secrets Manager
 DB_PASS="$DB_PASSWORD"
-# Se asume que el host es 'localhost' ya que DB y aplicación están en el mismo contenedor
 DB_HOST="${DB_HOST:-localhost}" 
+
+# URL completa para la conexión de las aplicaciones
+DB_URL="postgresql://$DB_USER:$DB_PASS@$DB_HOST:5432/$DB_NAME?sslmode=disable"
 # ===================================================================================
 
-# CORRECCIÓN: Se construye la URL usando las variables.
-DB_URL="postgresql://$DB_USER:$DB_PASS@$DB_HOST:5432/$DB_NAME?sslmode=disable"
-
-# Verificar si la base de datos ya está inicializada (El directorio 'main' es estándar en Debian)
+# Verificar si la base de datos ya está inicializada
 if [ ! -s "$PGDATA_DIR/main/PG_VERSION" ]; then
     echo "Initializing PostgreSQL data directory..."
     
-    # ... (Pasos de initdb, arranque temporal, espera, detención - Tu código original) ...
+    # 1. Ejecutar initdb
+    su - postgres -c "$PG_BIN_DIR/initdb -D $PGDATA_DIR/main"
     
+    # 2. Arrancar PostgreSQL temporalmente
+    echo "Starting PostgreSQL temporarily for initialization..."
+    # Se inicia en modo TCP/IP escuchando en localhost
+    su - postgres -c "$PG_BIN_DIR/pg_ctl -D $PGDATA_DIR/main -o '-c listen_addresses=localhost' start > /app/logs/postgres-temp.log 2>&1"
+    
+    # 3. Esperar a que la BD esté lista
+    echo "Waiting for PostgreSQL to be ready..."
+    # pg_isready usa por defecto conexión local, lo dejamos así
+    while ! $PG_BIN_DIR/pg_isready -d postgres -U postgres; do
+        sleep 1
+    done
+    echo "PostgreSQL is ready."
+
     # 4. Crear usuario, base de datos y ejecutar el script SQL
     echo "Creating user, database, and running init.sql..."
-    # Usamos la ruta completa de psql y createdb
-    # Nótese el uso de $DB_PASS
-    $PG_BIN_DIR/psql -U postgres -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';"
-    $PG_BIN_DIR/createdb $DB_NAME -U postgres -O $DB_USER
-    $PG_BIN_DIR/psql -d $DB_NAME -U $DB_USER -f $INIT_SQL
+    # *** CORRECCIÓN CRÍTICA: Se añade -h localhost para forzar la conexión TCP/IP
+    #     y evitar el error de socket de dominio Unix. ***
     
-    # ... (Pasos para detener PostgreSQL temporal) ...
+    # Crea el usuario con la contraseña segura
+    $PG_BIN_DIR/psql -h localhost -U postgres -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';"
     
+    # Crea la base de datos
+    $PG_BIN_DIR/createdb -h localhost $DB_NAME -U postgres -O $DB_USER
+    
+    # Ejecuta el script de inicialización
+    $PG_BIN_DIR/psql -h localhost -d $DB_NAME -U $DB_USER -f $INIT_SQL
+    
+    # 5. Detener PostgreSQL temporal
+    echo "Stopping temporary PostgreSQL server..."
+    su - postgres -c "$PG_BIN_DIR/pg_ctl -D $PGDATA_DIR/main stop"
+    
+    sleep 2
     echo "PostgreSQL initialization complete."
 fi
 
 # --- 2. PREPARACIÓN DE ENTORNO Y ARRANQUE DE SUPERVISOR ---
 
-# Exportar la URL completa (incluyendo la contraseña segura) para que los microservicios la usen
+# 1. Exportar la URL de conexión (incluye el secreto de la contraseña)
 export DATABASE_URL="$DB_URL"
 export REDIS_URL="localhost:6379"
 
-# >>>>>>> EXPORTAR LA CONTRASEÑA SECRETA PARA OTROS SERVICIOS <<<<<<<
-# Es crucial que la contraseña inyectada por ECS también esté disponible para las aplicaciones.
-export DB_PASSWORD="$DB_PASS" 
-# ===================================================================
+# 2. Exportar la clave de API interna
+# Esta variable fue inyectada de forma segura por ECS/Secrets Manager.
+export INVENTORY_API_KEY="$INVENTORY_API_KEY"
 
+# 3. Arrancar el demonio supervisor, que iniciará los microservicios
 echo "Starting supervisord..."
 # Supervisor usará las variables de entorno exportadas para iniciar los microservicios
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
