@@ -41,10 +41,9 @@ jobs:
       #############################################
       # TERRAFORM APPLY #1 — CREAR ECR + VPC + ALB + ECS vacío
       #############################################
-      - name: Terraform apply infra (ECR, VPC, ALB, ECS base)
+      - name: Terraform apply 
         working-directory: ./infra
-        run: terraform apply -auto-approve -var-file="env/dev.tfvars"
-
+        run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
       #############################################
       # LOGIN ECR
       #############################################
@@ -65,13 +64,10 @@ jobs:
       #############################################
       # TERRAFORM APPLY #2 — CREAR TASK DEFINITION CON LA IMAGEN
       #############################################
+      # En tu archivo .github/workflows/deploy.yml
       - name: Terraform apply with image
         working-directory: ./infra
-        run: |
-          terraform apply -auto-approve \
-          -var-file="env/dev.tfvars" \
-          -var="full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
-
+        run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"full_image=${{ steps.ecr.outputs.registry }}/stockwiz-dev/fullstack:dev-latest\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
       #############################################
       # UPDATE ECS SERVICE
       #############################################
