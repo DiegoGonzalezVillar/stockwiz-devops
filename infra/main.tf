@@ -37,7 +37,7 @@ module "ecr" {
 # 1. Llamada al Módulo de Secretos
 module "secrets" {
   source             = "./modules/secrets"
-  environment        = var.environment
+  env        = var.env
   db_password_secret         = var.db_password_secret
   inventory_api_key_secret   = var.inventory_api_key_secret
 }
@@ -54,7 +54,7 @@ module "ecs" {
   alb_target_group_arn = module.alb.target_group_arn
   aws_region = var.aws_region
   full_image = var.full_image
-db_password_arn      = module.secrets.db_password_arn
+  db_password_arn      = module.secrets.db_password_arn
   inventory_api_key_arn = module.secrets.inventory_api_key_arn
 }
 
