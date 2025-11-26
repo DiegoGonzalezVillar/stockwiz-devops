@@ -47,6 +47,12 @@ resource "aws_ecs_task_definition" "task" {
           awslogs-stream-prefix = "ecs"
         }
       }
+secrets = [
+        {
+          name      = "DB_PASSWORD" 
+          valueFrom = var.db_password_arn
+        }
+      ]
     }
   ])
 }
