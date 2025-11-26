@@ -1,6 +1,6 @@
 
 resource "aws_secretsmanager_secret" "db_password" {
-  name        = "${var.environment}/stockwiz/db_password"
+  name        = "${var.env}/stockwiz/db_password"
   description = "Contraseña de la base de datos para StockWiz."
 }
 
@@ -12,7 +12,7 @@ resource "aws_secretsmanager_secret_version" "db_password_version" {
 
 
 resource "aws_secretsmanager_secret" "inventory_api_key" {
-  name        = "${var.environment}/stockwiz/inventory_api_key"
+  name        = "${var.env}/stockwiz/inventory_api_key"
   description = "Clave de autenticación para llamadas internas (Product a Inventory)."
 }
 

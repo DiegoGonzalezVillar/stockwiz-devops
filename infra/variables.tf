@@ -22,7 +22,3 @@ variable "inventory_api_key_secret" {
   sensitive   = true
 }
 
-variable "environment" {
-  description = "Ambiente de despliegue (dev, test, prod)."
-  type        = string
-}
