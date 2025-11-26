@@ -19,16 +19,13 @@ jobs:
 
     - uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform destroy
+    # Ejemplo de un paso de 'destroy' en tu workflow:
+    - name: Terraform destroy infra
       working-directory: ./infra
-      run: |
-        terraform init -reconfigure \
-          -backend-config="bucket=stockwiz-tfstate" \
-          -backend-config="key=dev/terraform.tfstate" \
-          -backend-config="region=us-east-1" \
-          -backend-config="encrypt=true"
+      # Usar el formato de una sola línea con todas las variables requeridas
+      run: "terraform destroy -auto-approve -var-file=\"env/dev.tfvars\" -var=\"env=dev\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
 
-        terraform destroy -auto-approve -var-file="env/dev.tfvars"
+
 
 
 
