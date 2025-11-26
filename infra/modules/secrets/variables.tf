@@ -1,4 +1,4 @@
-variable "environment" {
+variable "env" {
   description = "El ambiente de despliegue (dev, test, prod)."
   type        = string
 }
