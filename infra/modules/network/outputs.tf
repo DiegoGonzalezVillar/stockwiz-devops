@@ -13,3 +13,8 @@ output "ecs_sg_id" {
 output "alb_sg_id" {
   value = aws_security_group.alb_sg.id
 }
+
+output "private_subnets" {
+  description = "IDs de las subredes privadas para ECS Tasks."
+  value       = aws_subnet.private_subnet[*].id
+}

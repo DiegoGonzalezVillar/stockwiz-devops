@@ -40,6 +40,18 @@ module "secrets" {
   inventory_api_key_secret   = var.inventory_api_key_secret
 }
 
+module "api_gateway" {
+  source           = "./modules/api-gateway"
+  project_name     = var.project_name
+  env              = var.env
+  
+  alb_listener_arn = module.alb.alb_listener_arn
+  alb_arn          = module.alb.alb_arn
+  
+  # ARN del LabRole que tiene el permiso para actuar
+  lab_role_arn     = "arn:aws:iam::654654254254:role/LabRole" 
+}
+
 module "monitoring" {
   source       = "./modules/monitoring"
   project_name = var.project_name
@@ -53,7 +65,7 @@ module "ecs" {
   source = "./modules/ecs"
   project_name         = var.project_name
   env                  = var.env
-  public_subnets       = module.network.public_subnets
+  private_subnet_ids = module.network.private_subnets
   ecs_sg_id            = module.network.ecs_sg_id
   alb_target_group_arn = module.alb.target_group_arn
   aws_region = var.aws_region

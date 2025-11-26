@@ -71,7 +71,7 @@ resource "aws_ecs_service" "svc" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = var.public_subnets
+    subnets          = var.private_subnet_ids
     security_groups  = [var.ecs_sg_id]
     assign_public_ip = true
   }
