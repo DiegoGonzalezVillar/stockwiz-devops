@@ -38,7 +38,8 @@ module "ecr" {
 module "secrets" {
   source             = "./modules/secrets"
   environment        = var.environment
-  # ... otras variables, incluyendo el valor sensible del secreto...
+  db_password_secret         = var.db_password_secret
+  inventory_api_key_secret   = var.inventory_api_key_secret
 }
 
 module "ecs" {
