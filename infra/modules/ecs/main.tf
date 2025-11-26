@@ -51,7 +51,12 @@ secrets = [
         {
           name      = "DB_PASSWORD" 
           valueFrom = var.db_password_arn
-        }
+        },
+{
+
+    name      = "INVENTORY_API_KEY"
+    valueFrom = var.inventory_api_key_arn 
+  }
       ]
     }
   ])

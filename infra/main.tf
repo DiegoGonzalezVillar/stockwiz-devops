@@ -9,6 +9,7 @@ terraform {
   }
 }
 
+
 provider "aws" {
   region  = var.aws_region
 }
@@ -33,18 +34,26 @@ module "ecr" {
   repositories = var.ecr_repositories
 }
 
+# 1. Llamada al Módulo de Secretos
+module "secrets" {
+  source             = "./modules/secrets"
+  environment        = var.environment
+  # ... otras variables, incluyendo el valor sensible del secreto...
+}
+
 module "ecs" {
 
   source = "./modules/ecs"
-
+	
 
   project_name         = var.project_name
   env                  = var.env
   public_subnets       = module.network.public_subnets
   ecs_sg_id            = module.network.ecs_sg_id
   alb_target_group_arn = module.alb.target_group_arn
-
   aws_region = var.aws_region
   full_image = var.full_image
+db_password_arn      = module.secrets.db_password_arn
+  inventory_api_key_arn = module.secrets.inventory_api_key_arn
 }
 

@@ -8,3 +8,14 @@ variable "aws_region" {
 
 variable "alb_target_group_arn" {}
 variable "full_image" {}
+
+variable "db_password_arn" {
+  description = "ARN del secreto de AWS Secrets Manager para la contraseña de la DB."
+  type        = string
+}
+
+variable "inventory_api_key_arn" {
+  description = "ARN del secreto de AWS Secrets Manager para la clave de la API de inventario."
+  type        = string
+}
+
