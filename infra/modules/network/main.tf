@@ -1,5 +1,3 @@
-
-
 data "aws_availability_zones" "available" {}
 
 ##############################
@@ -11,7 +9,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "stockwiz-${terraform.workspace}-vpc"
+    Name        = "${var.project_name}-${var.env}-vpc"
+    Project     = var.project_name
+    Environment = var.env
   }
 }
 
@@ -56,6 +56,59 @@ resource "aws_route_table_association" "public_assoc" {
 }
 
 ##############################
+# PRIVATE SUBNETS (2)
+##############################
+resource "aws_subnet" "private_subnet" {
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 4, count.index + 2) # Usamos índices 2 y 3
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  map_public_ip_on_launch = false # ¡Es clave que sea FALSE!
+
+  tags = {
+    Name = "stockwiz-${terraform.workspace}-private-${count.index}"
+  }
+}
+
+##############################
+# NAT GATEWAY & ELASTIC IP
+##############################
+# Asignar una IP elástica (EIP) para el NAT Gateway
+resource "aws_eip" "nat" {
+  count = 2 # Usar 2 para alta disponibilidad (1 por AZ)
+  vpc   = true
+}
+
+# NAT Gateway
+resource "aws_nat_gateway" "nat" {
+  count         = 2
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public_subnet[count.index].id # El NAT va en la SUBNET PÚBLICA
+
+  tags = {
+    Name = "stockwiz-${terraform.workspace}-nat-${count.index}"
+  }
+}
+
+# Tablas de Enrutamiento PRIVADAS
+resource "aws_route_table" "private_rt" {
+  count  = 2
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat[count.index].id
+  }
+}
+
+# Asociación de Rutas Privadas
+resource "aws_route_table_association" "private_assoc" {
+  count          = length(aws_subnet.private_subnet)
+  subnet_id      = aws_subnet.private_subnet[count.index].id
+  route_table_id = aws_route_table.private_rt[count.index].id
+}
+
+##############################
 # SECURITY GROUPS
 ##############################
 
@@ -87,8 +140,8 @@ resource "aws_security_group" "ecs_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port       = 0
-    to_port         = 0
+    from_port       = 8000 
+    to_port         = 8000
     protocol        = "-1"
     security_groups = [aws_security_group.alb_sg.id]
   }
