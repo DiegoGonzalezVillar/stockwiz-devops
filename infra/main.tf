@@ -9,7 +9,6 @@ terraform {
   }
 }
 
-
 provider "aws" {
   region  = var.aws_region
 }
@@ -34,7 +33,6 @@ module "ecr" {
   repositories = var.ecr_repositories
 }
 
-# 1. Llamada al Módulo de Secretos
 module "secrets" {
   source             = "./modules/secrets"
   env        = var.env
@@ -42,11 +40,17 @@ module "secrets" {
   inventory_api_key_secret   = var.inventory_api_key_secret
 }
 
+module "monitoring" {
+  source       = "./modules/monitoring"
+  project_name = var.project_name
+  env          = var.env
+  aws_region   = var.aws_region
+  
+  alb_arn_suffix = module.alb.alb_arn_suffix 
+}
+
 module "ecs" {
-
   source = "./modules/ecs"
-	
-
   project_name         = var.project_name
   env                  = var.env
   public_subnets       = module.network.public_subnets
