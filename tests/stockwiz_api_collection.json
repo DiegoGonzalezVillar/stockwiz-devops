@@ -1,0 +1,59 @@
+{
+  "info": {
+    "_postman_id": "c1f7a0b3-1e24-4d87-8d02-1a4c9b3e1f0e",
+    "name": "StockWiz API Functional Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET /health (Prueba Exitosa)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/health",
+          "host": ["{{BASE_URL}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "POST /products (Creación Exitosa)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Estado de respuesta 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "pm.test('ID de Producto Válido', function () {",
+              "    let response = pm.response.json();",
+              "    // Asumiendo que el ID es un número entero como en tu modelo FastAPI",
+              "    pm.expect(response.id).to.be.a('number').and.to.be.above(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Laptop Dell XPS\", \"description\":\"Laptop ultraligera y potente\", \"price\": 1800.00, \"category\": \"Electronics\"}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/products",
+          "host": ["{{BASE_URL}}"],
+          "path": ["products"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
