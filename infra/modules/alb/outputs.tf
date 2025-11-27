@@ -13,12 +13,3 @@ output "alb_arn_suffix" {
   value       = aws_lb.app_lb.arn_suffix
 }
 
-output "alb_listener_arn" {
-  description = "ARN del Listener del ALB para integraciones de API Gateway."
-  value       = aws_lb_listener.listener.arn 
-}
-
-output "alb_arn" {
-  description = "ARN completo del ALB (necesario para la política de IAM del API Gateway)."
-  value       = aws_lb.app_lb.arn
-}

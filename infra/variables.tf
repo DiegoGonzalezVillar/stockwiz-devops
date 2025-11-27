@@ -22,3 +22,7 @@ variable "inventory_api_key_secret" {
   sensitive   = true
 }
 
+variable "alert_email" {
+  description = "Correo electrónico que recibirá las notificaciones de despliegue."
+  type        = string
+}

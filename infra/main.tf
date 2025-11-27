@@ -40,16 +40,19 @@ module "secrets" {
   inventory_api_key_secret   = var.inventory_api_key_secret
 }
 
-module "api_gateway" {
-  source           = "./modules/api-gateway"
-  project_name     = var.project_name
-  env              = var.env
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
+module "notifier" {
+  source        = "./modules/notifier"
+  project_name  = var.project_name
+  env           = var.env
+  aws_region    = var.aws_region
+  alert_email   = var.alert_email 
   
-  alb_listener_arn = module.alb.alb_listener_arn
-  alb_arn          = module.alb.alb_arn
-  
-  # ARN del LabRole que tiene el permiso para actuar
-  lab_role_arn     = "arn:aws:iam::654654254254:role/LabRole" 
+  # CRÍTICO: Usar el ARN del LabRole
+  lab_role_arn  = data.aws_iam_role.lab_role.arn
 }
 
 module "monitoring" {
