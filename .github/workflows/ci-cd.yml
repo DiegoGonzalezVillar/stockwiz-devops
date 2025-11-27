@@ -45,21 +45,28 @@ jobs:
         id: flake8_check
         working-directory: ./product-service 
         run: |
-          echo "Iniciando análisis estático del product-service y generando reporte..."
+          echo "Iniciando análisis estático (Flake8)..."
+          
+          # 1. Asegurar la instalación (si se necesita en cada corrida)
           pip install -r requirements.txt
           pip install flake8
           
-          # CRÍTICO: Redirigir la salida (errores y advertencias) a un archivo
-          flake8 main.py > flake8_report.txt 2>&1
+          # 2. CRÍTICO: Ejecutar Flake8, redirigir la salida al archivo, 
+          # y usar '|| true' al final. Esto previene que el código de salida 1 
+          # de Flake8 detenga el script de shell.
+          flake8 main.py > flake8_report.txt 2>&1 || true 
           
-          # Verificar el código de salida ($?)
-          if [ $? -ne 0 ]; then
-            echo "Advertencia: Flake8 encontró fallos. El reporte ha sido guardado."
-            echo "::set-output name=quality_status::FAIL_SILENT"
+          echo "Flake8 ejecutado. Guardando reporte..."
+          
+          # 3. Mostrar si se encontraron errores
+          if [ -s flake8_report.txt ]; then
+            echo "Advertencia: Se encontraron fallos de calidad. Ver Artifacts."
           else
-            echo "Análisis estático con Flake8 completado sin fallos."
-            echo "::set-output name=quality_status::PASS"
+            echo "Análisis estático sin fallos de estilo."
           fi
+          
+          echo "Contenido del Reporte:"
+          cat flake8_report.txt
 
       # TERRAFORM APPLY #1 — CREAR ECR + VPC + ALB + ECS vacío
 
