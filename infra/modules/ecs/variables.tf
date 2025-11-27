@@ -1,6 +1,5 @@
 variable "project_name" {}
 variable "env" {}
-variable "public_subnets" { type = list(string) }
 variable "private_subnet_ids" {
   description = "IDs de las subredes privadas donde se lanzarán las Tasks de ECS Fargate."
   type        = list(string)

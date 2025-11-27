@@ -68,7 +68,7 @@ module "ecs" {
   source = "./modules/ecs"
   project_name         = var.project_name
   env                  = var.env
-  private_subnet_ids = module.network.private_subnets
+  private_subnet_ids   = module.network.private_subnets
   ecs_sg_id            = module.network.ecs_sg_id
   alb_target_group_arn = module.alb.target_group_arn
   aws_region = var.aws_region
