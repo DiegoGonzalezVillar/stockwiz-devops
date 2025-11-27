@@ -200,10 +200,8 @@ async def update_product(
 @app.delete("/products/{product_id}", status_code=204)
 async def delete_product(product_id: int, db: asyncpg.Connection = Depends(get_db)):
     result = await db.execute("DELETE FROM products WHERE id = $1", product_id)
-    
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Product not found")
-    
     # Invalidar caches
     await redis_client.delete(f"product:{product_id}")
     await redis_client.delete("products:all")
