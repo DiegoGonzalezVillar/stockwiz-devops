@@ -75,8 +75,7 @@ resource "aws_subnet" "private_subnet" {
 ##############################
 # Asignar una IP elástica (EIP) para el NAT Gateway
 resource "aws_eip" "nat" {
-  count = 2 # Usar 2 para alta disponibilidad (1 por AZ)
-  vpc   = true
+  count = 2
 }
 
 # NAT Gateway
