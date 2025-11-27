@@ -16,6 +16,16 @@ resource "aws_vpc" "main" {
 }
 
 ##############################
+# INTERNET GATEWAY
+##############################
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "${var.project_name}-${var.env}-igw"
+  }
+}
+
+##############################
 # PUBLIC SUBNETS (2)
 ##############################
 resource "aws_subnet" "public_subnet" {
@@ -31,18 +41,13 @@ resource "aws_subnet" "public_subnet" {
 }
 
 ##############################
-# INTERNET GATEWAY
-##############################
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-}
-
-##############################
 # PUBLIC ROUTE TABLE
 ##############################
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
-
+  tags = {
+    Name = "${var.project_name}-${var.env}-public-rt" 
+  }
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
@@ -82,7 +87,7 @@ resource "aws_eip" "nat" {
 resource "aws_nat_gateway" "nat" {
   count         = 2
   allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public_subnet[count.index].id # El NAT va en la SUBNET PÚBLICA
+  subnet_id     = aws_subnet.public_subnet[count.index].id
 
   tags = {
     Name = "stockwiz-${terraform.workspace}-nat-${count.index}"
@@ -93,7 +98,9 @@ resource "aws_nat_gateway" "nat" {
 resource "aws_route_table" "private_rt" {
   count  = 2
   vpc_id = aws_vpc.main.id
-
+  tags = {
+    Name = "${var.project_name}-${var.env}-private-rt-${count.index}" # ⬅️ Agregar este tag
+  }
   route {
     cidr_block = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat[count.index].id

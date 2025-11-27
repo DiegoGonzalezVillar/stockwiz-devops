@@ -3,6 +3,9 @@ resource "aws_lb" "app_lb" {
   load_balancer_type = "application"
   security_groups    = [var.alb_sg_id]
   subnets            = var.public_subnets
+  tags = {
+    Name        = "${var.project_name}-${var.env}-ALB"
+  }
 }
 
 ####################################
@@ -10,10 +13,14 @@ resource "aws_lb" "app_lb" {
 ####################################
 resource "aws_lb_target_group" "tg" {
   name     = "${var.project_name}-${var.env}-tg"
-  port     = 8001
+  port     = 8000
   protocol = "HTTP"
   target_type = "ip"
   vpc_id   = aws_lb.app_lb.vpc_id
+
+  tags = { 
+    Name        = "${var.project_name}-${var.env}-TG"
+  }
 
   health_check {
     path                = "/health"
