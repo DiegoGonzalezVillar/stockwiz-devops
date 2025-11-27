@@ -7,7 +7,7 @@ output "alb_dns" {
 #}
 
 output "alb_dns_name" {
-  value       = aws_lb.app_lb.dns_name 
+  value       =  module.alb.alb_dns_name
   description = "The DNS name of the Application Load Balancer for accessing the API Gateway."
 }
 
