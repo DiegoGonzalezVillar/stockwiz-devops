@@ -187,6 +187,11 @@ jobs:
           # 1. Instalar Newman y el reporter de JUnit
           npm install -g newman
           npm install -g newman-reporter-junitfull
+
+          echo "Esperando 30 segundos para la propagación del ALB..."
+          sleep 30
+
+          echo "DEBUG: TEST_BASE_URL is ${{ env.TEST_BASE_URL }}"
           
           # 2. Ejecutar y guardar el reporte en un archivo .xml
           newman run stockwiz_api_collection.json \
