@@ -150,11 +150,24 @@ jobs:
 
       - name: Terraform apply - TEST (Despliegue Temporal)
         id: deploy_test
-        working-directory: ./infra
+        working-directory: ./infra 
         run: |
-          # Usa la imagen construida en el job anterior y variables de TEST
-          terraform apply -auto-approve -var-file=\"env/test.tfvars\" -var=\"full_image=${{ needs.deploy_dev.outputs.ecr_dev.outputs.registry }}/stockwiz-dev/fullstack:dev-latest\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_TEST }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}\"
+          ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/test.tfvars"
+          
+          # 1. Verificar si el archivo existe (diagnóstico)
+          if [ -f "$ABS_TFVARS_PATH" ]; then
+            echo " Archivo tfvars encontrado en: $ABS_TFVARS_PATH"
+          else
+            echo " ERROR FATAL: Archivo tfvars NO encontrado en: $ABS_TFVARS_PATH"
+            exit 1
+          fi
 
+          # 2. Ejecutar Terraform usando la variable de ruta absoluta
+          terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
+            -var="full_image=${{ needs.deploy_dev.outputs.ecr_dev.outputs.registry }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
+            -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
+            
       # 3. Obtener la URL del ALB de TEST
       - name: Get ALB DNS Name - TEST
         id: get_test_url
