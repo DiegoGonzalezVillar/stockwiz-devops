@@ -1,0 +1,42 @@
+name: Destroy TEST Infra
+
+on:
+  # Permite ejecutar este workflow manualmente desde la interfaz de GitHub
+  workflow_dispatch:
+    # Opcional: Puedes añadir inputs aquí si quieres que el usuario confirme algo
+
+permissions:
+  contents: read # Solo necesita leer el código
+  id-token: write # Necesario si usas OIDC para AWS (aunque tu setup usa claves)
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # --- 1. Inicialización para TEST ---
+      - name: ⚙️ Terraform init for Destroy (TEST)
+        working-directory: ./infra
+        # 💡 SOLUCIÓN: Usar un solo comando sin saltos de línea (\)
+        run: terraform init -reconfigure -backend-config="bucket=stockwiz-tfstate" -backend-config="key=test/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="encrypt=true"
+
+      # Y para el paso 'destroy', haz lo mismo:
+
+      - name: 💥 Terraform destroy infra (TEST)
+        working-directory: ./infra
+        # 💡 SOLUCIÓN: Usar un solo comando sin saltos de línea (\)
+        run: terraform destroy -auto-approve -var-file="env/test.tfvars" -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
