@@ -6,7 +6,7 @@
   },
   "item": [
     {
-      "name": "GET /health-check (Prueba Exitosa)",
+      "name": "GET /health (Prueba Exitosa)",
       "request": {
         "method": "GET",
         "header": [],
@@ -19,7 +19,7 @@
       "response": []
     },
     {
-      "name": "POST /stock (Prueba de Creación de Recurso)",
+      "name": "POST /products (Creación Exitosa)",
       "event": [
         {
           "listen": "test",
@@ -28,9 +28,10 @@
               "pm.test('Estado de respuesta 201', function () {",
               "    pm.response.to.have.status(201);",
               "});",
-              "pm.test('ID de Recurso Válido', function () {",
+              "pm.test('ID de Producto Válido', function () {",
               "    let response = pm.response.json();",
-              "    pm.expect(response.stock_id).to.be.a('string').and.to.have.lengthOf(36);",
+              "    // Asumiendo que el ID es un número entero como en tu modelo FastAPI",
+              "    pm.expect(response.id).to.be.a('number').and.to.be.above(0);",
               "});"
             ],
             "type": "text/javascript"
@@ -44,12 +45,12 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"symbol\":\"GOOGL\", \"quantity\": 10, \"price\": 1500.50}"
+          "raw": "{\"name\":\"Laptop Dell XPS\", \"description\":\"Laptop ultraligera y potente\", \"price\": 1800.00, \"category\": \"Electronics\"}"
         },
         "url": {
-          "raw": "{{BASE_URL}}/stock",
+          "raw": "{{BASE_URL}}/products",
           "host": ["{{BASE_URL}}"],
-          "path": ["stock"]
+          "path": ["products"]
         }
       },
       "response": []
