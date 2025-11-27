@@ -16,6 +16,8 @@ provider "aws" {
 module "network" {
   source     = "./modules/network"
   vpc_cidr   = var.vpc_cidr
+  project_name  = var.project_name
+  env           = var.env
   aws_region = var.aws_region
 }
 
@@ -50,8 +52,6 @@ module "notifier" {
   env           = var.env
   aws_region    = var.aws_region
   alert_email   = var.alert_email 
-  
-  # CRÍTICO: Usar el ARN del LabRole
   lab_role_arn  = data.aws_iam_role.lab_role.arn
 }
 
