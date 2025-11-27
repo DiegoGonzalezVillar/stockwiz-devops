@@ -13,3 +13,8 @@ output "alb_arn_suffix" {
   value       = aws_lb.app_lb.arn_suffix
 }
 
+output "alb_dns_name" {
+  value       = aws_lb.app_lb.dns_name 
+  description = "The DNS name of the Application Load Balancer."
+}
+
