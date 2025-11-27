@@ -29,20 +29,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       # --- 1. Inicialización para TEST ---
-      - name: Terraform init for Destroy (TEST)
+      - name: ⚙️ Terraform init for Destroy (TEST)
         working-directory: ./infra
-        run: |
-          terraform init -reconfigure \
-            -backend-config="bucket=stockwiz-tfstate" \
-            -backend-config="key=test/terraform.tfstate" \ # ❗ Clave de estado de TEST
-            -backend-config="region=us-east-1" \
-            -backend-config="encrypt=true"
+        # 💡 SOLUCIÓN: Usar un solo comando sin saltos de línea (\)
+        run: terraform init -reconfigure -backend-config="bucket=stockwiz-tfstate" -backend-config="key=test/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="encrypt=true"
 
-      # --- 2. Destrucción de la Infraestructura de TEST ---
-      - name: Terraform destroy infra (TEST)
+      # Y para el paso 'destroy', haz lo mismo:
+
+      - name: 💥 Terraform destroy infra (TEST)
         working-directory: ./infra
-        run: |
-          terraform destroy -auto-approve \
-            -var-file="env/test.tfvars" \  # ❗ Archivo de variables de TEST
-            -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \ # ❗ Secretos de TEST
-            -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}" # ❗ Secretos de TEST
+        # 💡 SOLUCIÓN: Usar un solo comando sin saltos de línea (\)
+        run: terraform destroy -auto-approve -var-file="env/test.tfvars" -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
