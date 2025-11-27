@@ -191,7 +191,7 @@ jobs:
           # 2. Ejecutar y guardar el reporte en un archivo .xml
           newman run stockwiz_api_collection.json \
             --global-var "baseUrl=${{ env.TEST_BASE_URL }}" \
-            --reporter junitfull --reporter-junit-export results/newman_report.xml
+            --reporters junitfull --reporter-junit-export results/newman_report.xml
           
           echo "Reporte JUnit generado en tests/results/newman_report.xml"
       - name: Subir Reporte Newman como Artifact
