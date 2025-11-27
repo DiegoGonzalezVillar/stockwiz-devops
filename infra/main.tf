@@ -27,6 +27,7 @@ module "alb" {
   alb_sg_id      = module.network.alb_sg_id
   project_name   = var.project_name
   env            = var.env
+  vpc_id = module.network.vpc_id
 }
 
 module "ecr" {

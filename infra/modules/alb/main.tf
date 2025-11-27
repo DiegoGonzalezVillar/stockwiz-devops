@@ -16,7 +16,7 @@ resource "aws_lb_target_group" "tg" {
   port     = 8000
   protocol = "HTTP"
   target_type = "ip"
-  vpc_id   = aws_lb.app_lb.vpc_id
+  vpc_id   = module.network.vpc_id
 
   tags = { 
     Name        = "${var.project_name}-${var.env}-TG"
