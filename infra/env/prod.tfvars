@@ -8,3 +8,4 @@ ecr_repositories = [
 ]
 
 full_image = "placeholder"
+
