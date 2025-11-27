@@ -207,7 +207,6 @@ async def delete_product(product_id: int, db: asyncpg.Connection = Depends(get_d
     # Invalidar caches
     await redis_client.delete(f"product:{product_id}")
     await redis_client.delete("products:all")
-    
     return None
 
 if __name__ == "__main__":
