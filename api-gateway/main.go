@@ -156,7 +156,9 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
-	w.Write(data)
+	if _, err := w.Write([]byte(cached)); err != nil {
+    	log.Println("error writing cached response:", err)
+	}
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +177,10 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+    	log.Println("error encoding health response:", err)
+}
+
 }
 
 func checkServiceHealth(url string) string {
@@ -244,7 +249,10 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
 	w.WriteHeader(resp.StatusCode)
 
 	// Copiar body
-	io.Copy(w, resp.Body)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+    	log.Println("Error copying response body:", err)
+}
+
 }
 
 func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
@@ -256,7 +264,10 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 	// Intentar obtener del cache
 	cached, err := redisClient.Get(ctx, cacheKey).Result()
 	if err == nil {
-		w.Write([]byte(cached))
+		if _, err := w.Write(response); err != nil {
+    log.Println("error writing product response:", err)
+}
+
 		return
 	}
 
@@ -270,7 +281,10 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 
 	if productResp.StatusCode != http.StatusOK {
 		w.WriteHeader(productResp.StatusCode)
-		io.Copy(w, productResp.Body)
+		if _, err := io.Copy(w, inventoryResp.Body); err != nil {
+    log.Println("error copying inventory:", err)
+}
+
 		return
 	}
 
@@ -306,7 +320,10 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 	// Guardar en cache por 3 minutos
 	redisClient.Set(ctx, cacheKey, response, 3*time.Minute)
 
-	w.Write(response)
+	if _, err := w.Write(response); err != nil {
+    log.Println("error writing full product:", err)
+}
+
 }
 
 func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +353,10 @@ func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 
 	if productsResp.StatusCode != http.StatusOK {
 		w.WriteHeader(productsResp.StatusCode)
-		io.Copy(w, productsResp.Body)
+		if _, err := io.Copy(w, resp.Body); err != nil {
+    log.Println("error copying proxy body:", err)
+}
+
 		return
 	}
 
@@ -379,8 +399,10 @@ func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 func sendError(w http.ResponseWriter, status int, message, detail string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
-		Error:   message,
-		Message: detail,
-	})
+	if err := json.NewEncoder(w).Encode(ErrorResponse{
+    Error: message, Message: detail,
+}); err != nil {
+    log.Println("error encoding error response:", err)
+}
+
 }
