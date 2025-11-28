@@ -1,0 +1,37 @@
+name: Destroy PROD Infra
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # --- 1. Inicialización para PROD ---
+      - name: ⚙️ Terraform init for Destroy (PROD)
+        working-directory: ./infra
+        run: terraform init -reconfigure -backend-config="bucket=stockwiz-tfstate" -backend-config="key=prod/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="encrypt=true"
+
+      # --- 2. Destroy Infra ---
+      - name: 💥 Terraform destroy infra (PROD)
+        working-directory: ./infra
+        run: terraform destroy -auto-approve -var-file="env/prod.tfvars" -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD }}" -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
