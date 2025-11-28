@@ -163,7 +163,7 @@ jobs:
           npm install -g newman-reporter-junitfull
 
           echo "Esperando 30 segundos para la propagación del ALB..."
-          sleep 30 # CRÍTICO: Esperar al ALB
+          sleep 120 # CRÍTICO: Esperar al ALB
           
           echo "DEBUG: TEST_BASE_URL is ${{ env.TEST_BASE_URL }}"
           
@@ -187,13 +187,13 @@ jobs:
           path: tests/results/newman_report.xml
           
       # ➡️ 5. Cleanup (Destruir el ambiente de TEST)
-      - name: Destruir Infraestructura TEST
-        if: always() # Ejecutar siempre, incluso si las pruebas fallaron
-        working-directory: ./infra
-        run: |
-          echo "Destruyendo ambiente TEST después de la ejecución de pruebas..."
+      #- name: Destruir Infraestructura TEST
+      #  if: always() # Ejecutar siempre, incluso si las pruebas fallaron
+      #  working-directory: ./infra
+      #  run: |
+      #    echo "Destruyendo ambiente TEST después de la ejecución de pruebas..."
           # CRÍTICO: Pasar las mismas variables para que Terraform encuentre el estado
-          terraform destroy -var-file="env/test.tfvars" -auto-approve \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
-            -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
-            -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
+      #    terraform destroy -var-file="env/test.tfvars" -auto-approve \
+      #      -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+      #      -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
+      #      -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
