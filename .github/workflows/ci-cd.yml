@@ -30,7 +30,8 @@ jobs:
         with:
           version: latest
           working-directory: ./api-gateway
-          args: --timeout=5m --out-format=checkstyle --output=golangci-lint.xml
+          args: --timeout=5m --out-format=checkstyle:golangci-lint.xml
+
 
       - name: Subir reporte golangci-lint
         if: always()
