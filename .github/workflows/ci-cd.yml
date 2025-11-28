@@ -1,5 +1,4 @@
-name: StockWiz CI/CD Pipeline - DEV y TEST
-
+name: StockWiz CI/CD Pipeline - DEV , TEST Y PROD
 on:
   push:
     branches: ["develop"]
@@ -9,32 +8,26 @@ permissions:
   id-token: write
 
 jobs:
-  # =======================================================
-  # JOB 1: VALIDACIÓN y DESPLIEGUE a DEV
-  # =======================================================
+
   deploy_dev:
     runs-on: ubuntu-latest
     
-    # 💡 CRÍTICO: Exponer la URL del registro ECR como Output del Job
     outputs:
       ecr_registry_url: ${{ steps.ecr_dev.outputs.registry }}
       dev_alb_url: ${{ steps.get_dev_url.outputs.dev_alb_url }}
 
     steps:
-      # ➡️ CHECKOUT
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ➡️ AWS CREDENTIALS
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      # ➡️ TERRAFORM INIT & SETUP
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -47,7 +40,6 @@ jobs:
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
             
-      # ➡️ QUALITY GATE: ANÁLISIS ESTÁTICO CON FLAKE8
       - name: Ejecutar Flake8 y Generar Reporte
         id: flake8_check
         working-directory: ./product-service
@@ -58,31 +50,26 @@ jobs:
           flake8 main.py > flake8_report.txt 2>&1 || true
           cat flake8_report.txt
 
-      # ➡️ TERRAFORM APPLY #1 — CREAR ECR + VPC + ALB + ECS vacío
       - name: Terraform apply - DEV (Infra Base)
         working-directory: ./infra
-        # Nota: El segundo apply con la imagen se encarga de este apply también si no hay cambios.
+
         run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
         
-      # ➡️ LOGIN ECR
       - name: Login ECR
         id: ecr_dev
         uses: aws-actions/amazon-ecr-login@v2
         
-      # ➡️ BUILD & PUSH FULLSTACK IMAGE
       - name: Build & push fullstack container
         run: |
           REG="${{ steps.ecr_dev.outputs.registry }}"
           docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
           docker push $REG/stockwiz-dev/fullstack:dev-latest
           
-      # ➡️ TERRAFORM APPLY #2 — CREAR TASK DEFINITION CON LA IMAGEN
       - name: Terraform apply - DEV (Imagen Final)
         id: apply_dev_image
         working-directory: ./infra
         run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"full_image=${{ steps.ecr_dev.outputs.registry }}/stockwiz-dev/fullstack:dev-latest\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
         
-      # ➡️ UPDATE ECS SERVICE
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -90,38 +77,33 @@ jobs:
             --service stockwiz-dev-svc \
             --force-new-deployment
 
-      # ➡️ OBTENER EL DNS DEL ALB PARA EL JOB SIGUIENTE
       - name: Get ALB DNS Name - DEV
         id: get_dev_url
         working-directory: ./infra
         run: echo "dev_alb_url=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
 
 
-  # ----------------------------------------------------
-  # JOB 2: DESPLIEGUE a TEST y PRUEBAS FUNCIONALES
-  # ----------------------------------------------------
+  #TEST
   test_functional:
     name: Run Functional Tests (TEST Env)
     runs-on: ubuntu-latest
-    needs: deploy_dev # Depende del éxito del despliegue en DEV
+    needs: deploy_dev 
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      # ➡️ 1. Configuración AWS y Terraform (Mismo setup que DEV)
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # ➡️ 2. Despliegue de Infraestructura TEST
       - name: Terraform init - TEST
         working-directory: ./infra
         run: |
@@ -143,7 +125,6 @@ jobs:
             -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
             
-      # ➡️ 3. Obtener la URL del ALB de TEST
       - name: Get ALB DNS Name - TEST
         id: get_test_url
         working-directory: ./infra
@@ -152,7 +133,6 @@ jobs:
           TEST_ALB_URL=$(terraform output -raw alb_dns_name)
           echo "TEST_BASE_URL=$TEST_ALB_URL" >> $GITHUB_ENV # Usaremos ${{ env.TEST_BASE_URL }}
         
-      # ➡️ 4. Ejecución de Pruebas Funcionales (Newman)
       - name: Ejecutar Pruebas Funcionales (Newman)
         working-directory: ./tests
         run: |
@@ -171,11 +151,11 @@ jobs:
           newman run stockwiz_api_collection.json \
             --global-var "BASE_URL=${{ env.TEST_BASE_URL }}" \
             --reporters cli,junitfull \
-            --reporter-junit-export results/newman_report.xml
+            --reporter-junit-export newman_report.xml
             
           # CRÍTICO: Forzar la falla del Job si Newman falla (código de salida != 0)
           if [ $? -ne 0 ]; then
-            echo "❌ ERROR: Las pruebas funcionales fallaron."
+            echo "ERROR: Las pruebas funcionales fallaron."
             exit 1
           fi
 
@@ -186,14 +166,53 @@ jobs:
           name: reporte-pruebas-funcionales-${{ github.sha }}
           path: tests/results/newman_report.xml
           
-      # ➡️ 5. Cleanup (Destruir el ambiente de TEST)
-      #- name: Destruir Infraestructura TEST
-      #  if: always() # Ejecutar siempre, incluso si las pruebas fallaron
-      #  working-directory: ./infra
-      #  run: |
-      #    echo "Destruyendo ambiente TEST después de la ejecución de pruebas..."
-          # CRÍTICO: Pasar las mismas variables para que Terraform encuentre el estado
-      #    terraform destroy -var-file="env/test.tfvars" -auto-approve \
-      #      -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
-      #      -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
-      #      -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
+      - name: Destruir Infraestructura TEST
+        if: always() # Ejecutar siempre, incluso si las pruebas fallaron
+        working-directory: ./infra
+        run: |
+          echo "Destruyendo ambiente TEST después de la ejecución de pruebas..."
+
+          terraform destroy -var-file="env/test.tfvars" -auto-approve \
+            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
+            -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
+# PRODUCCIÓN
+  deploy_prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: test_functional
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+  
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+  
+      - name: Terraform init - PROD
+        working-directory: ./infra
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=stockwiz-tfstate" \
+            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="encrypt=true"
+  
+      - name: Terraform apply - PROD (Despliegue Final)
+        working-directory: ./infra
+        run: |
+          ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/prod.tfvars"
+          
+          # CRÍTICO: Usar la imagen creada en el Job deploy_dev (si tu proceso de building es allí)
+          terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
+            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD }}" \
+            -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
