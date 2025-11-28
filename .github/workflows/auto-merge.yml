@@ -2,7 +2,7 @@ name: Auto Merge to Main
 
 on:
   workflow_run:
-    workflows: ["CI-CD Multi Env"]
+    workflows: ["StockWiz CI/CD Pipeline - DEV , TEST Y PROD"]
     types:
       - completed
 
