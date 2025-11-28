@@ -45,12 +45,10 @@
     "method": "GET",
     "header": [],
     "url": {
-        // 1. RAW: Debe incluir /api
         "raw": "{{BASE_URL}}/api/products", 
         "host": [
             "{{BASE_URL}}"
         ],
-        // 2. PATH: El arreglo de path debe ser ["api", "products"]
         "path": [
             "api",
             "products"
@@ -61,4 +59,5 @@
 		}
 	]
 }
+
 
