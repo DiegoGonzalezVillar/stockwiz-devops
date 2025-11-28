@@ -163,7 +163,7 @@ jobs:
           npm install -g newman-reporter-junitfull
 
           echo "Esperando 30 segundos para la propagación del ALB..."
-          sleep 30 # CRÍTICO: Esperar al ALB
+          sleep 120 # CRÍTICO: Esperar al ALB
           
           echo "DEBUG: TEST_BASE_URL is ${{ env.TEST_BASE_URL }}"
           
