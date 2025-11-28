@@ -74,15 +74,14 @@ func main() {
 		MinIdleConns: 2,
 	})
 
-	// Verificar conexión a Redis (pero NO fallar si no existe)
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		log.Println("⚠️ Redis not available, running without cache:", err)
-		redisClient = nil // Deshabilitar cache
+		redisClient = nil
 	} else {
 		log.Println("✅ Connected to Redis")
 	}
 
-	// Configurar HTTP client con timeout y pool
+	// HTTP client
 	httpClient = &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -96,7 +95,7 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// Middleware
+	// Middlewares
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
@@ -114,24 +113,20 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// Servir archivos estáticos (Frontend)
+	// Static files
 	staticFS, _ := fs.Sub(staticFiles, "static")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
-	// Ruta principal - servir index.html
 	r.Get("/", serveIndex)
-
-	// API Routes
 	r.Get("/health", healthCheck)
 
-	// Product routes (proxy)
+	// API routes
 	r.Get("/api/products", proxyToProductService)
 	r.Get("/api/products/{id}", getProductWithInventory)
 	r.Post("/api/products", proxyToProductService)
 	r.Put("/api/products/{id}", proxyToProductService)
 	r.Delete("/api/products/{id}", proxyToProductService)
 
-	// Inventory routes (proxy)
 	r.Get("/api/inventory", proxyToInventoryService)
 	r.Get("/api/inventory/{id}", proxyToInventoryService)
 	r.Get("/api/inventory/product/{product_id}", proxyToInventoryService)
@@ -139,7 +134,6 @@ func main() {
 	r.Put("/api/inventory/{id}", proxyToInventoryService)
 	r.Delete("/api/inventory/{id}", proxyToInventoryService)
 
-	// Endpoint agregado especial
 	r.Get("/api/products-full", getAllProductsWithInventory)
 
 	log.Println("🚀 API Gateway listening on :8000")
@@ -156,15 +150,14 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
-	if _, err := w.Write([]byte(cached)); err != nil {
-    	log.Println("error writing cached response:", err)
+	if _, err := w.Write(data); err != nil {
+		log.Println("error writing index.html:", err)
 	}
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Verificar salud de servicios downstream
 	productHealth := checkServiceHealth(productServiceURL + "/health")
 	inventoryHealth := checkServiceHealth(inventoryServiceURL + "/health")
 
@@ -178,9 +171,8 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-    	log.Println("error encoding health response:", err)
-}
-
+		log.Println("error writing health response:", err)
+	}
 }
 
 func checkServiceHealth(url string) string {
@@ -205,7 +197,6 @@ func proxyToInventoryService(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
-	// Construir URL del servicio destino - remover el prefijo /api
 	path := r.URL.Path
 	if len(path) >= 4 && path[:4] == "/api" {
 		path = path[4:]
@@ -216,21 +207,18 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
 		url += "?" + r.URL.RawQuery
 	}
 
-	// Crear request
 	proxyReq, err := http.NewRequest(r.Method, url, r.Body)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "Error creating proxy request", err.Error())
 		return
 	}
 
-	// Copiar headers
 	for key, values := range r.Header {
 		for _, value := range values {
 			proxyReq.Header.Add(key, value)
 		}
 	}
 
-	// Ejecutar request
 	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		sendError(w, http.StatusBadGateway, "Error connecting to service", err.Error())
@@ -238,21 +226,17 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
 	}
 	defer resp.Body.Close()
 
-	// Copiar headers de respuesta
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
 
-	// Copiar status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Copiar body
 	if _, err := io.Copy(w, resp.Body); err != nil {
-    	log.Println("Error copying response body:", err)
-}
-
+		log.Println("error copying proxy response:", err)
+	}
 }
 
 func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
@@ -261,17 +245,14 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 	productID := chi.URLParam(r, "id")
 	cacheKey := fmt.Sprintf("gateway:product_full:%s", productID)
 
-	// Intentar obtener del cache
 	cached, err := redisClient.Get(ctx, cacheKey).Result()
 	if err == nil {
-		if _, err := w.Write(response); err != nil {
-    log.Println("error writing product response:", err)
-}
-
+		if _, err := w.Write([]byte(cached)); err != nil {
+			log.Println("error writing cached product:", err)
+		}
 		return
 	}
 
-	// Obtener producto
 	productResp, err := httpClient.Get(fmt.Sprintf("%s/products/%s", productServiceURL, productID))
 	if err != nil {
 		sendError(w, http.StatusBadGateway, "Error connecting to product service", err.Error())
@@ -281,10 +262,9 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 
 	if productResp.StatusCode != http.StatusOK {
 		w.WriteHeader(productResp.StatusCode)
-		if _, err := io.Copy(w, inventoryResp.Body); err != nil {
-    log.Println("error copying inventory:", err)
-}
-
+		if _, err := io.Copy(w, productResp.Body); err != nil {
+			log.Println("error copying product body:", err)
+		}
 		return
 	}
 
@@ -294,7 +274,6 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Obtener inventario (no fallar si no existe)
 	inventoryResp, err := httpClient.Get(fmt.Sprintf("%s/inventory/product/%s", inventoryServiceURL, productID))
 	if err == nil && inventoryResp.StatusCode == http.StatusOK {
 		defer inventoryResp.Body.Close()
@@ -316,34 +295,29 @@ func getProductWithInventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, _ := json.Marshal(product)
-
-	// Guardar en cache por 3 minutos
 	redisClient.Set(ctx, cacheKey, response, 3*time.Minute)
 
 	if _, err := w.Write(response); err != nil {
-    log.Println("error writing full product:", err)
-}
-
+		log.Println("error writing product response:", err)
+	}
 }
 
 func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	cacheKey := "gateway:products_full:all"
-
-	// Verificar si se solicita forzar refresh (parámetro force_refresh)
 	forceRefresh := r.URL.Query().Get("force_refresh") == "true"
 
-	// Intentar obtener del cache solo si no se fuerza refresh
 	if !forceRefresh {
 		cached, err := redisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
-			w.Write([]byte(cached))
+			if _, err := w.Write([]byte(cached)); err != nil {
+				log.Println("error writing cached list:", err)
+			}
 			return
 		}
 	}
 
-	// Obtener todos los productos
 	productsResp, err := httpClient.Get(fmt.Sprintf("%s/products", productServiceURL))
 	if err != nil {
 		sendError(w, http.StatusBadGateway, "Error connecting to product service", err.Error())
@@ -353,10 +327,9 @@ func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 
 	if productsResp.StatusCode != http.StatusOK {
 		w.WriteHeader(productsResp.StatusCode)
-		if _, err := io.Copy(w, resp.Body); err != nil {
-    log.Println("error copying proxy body:", err)
-}
-
+		if _, err := io.Copy(w, productsResp.Body); err != nil {
+			log.Println("error copying products body:", err)
+		}
 		return
 	}
 
@@ -366,10 +339,11 @@ func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Obtener inventario para cada producto
 	for i := range products {
 		inventoryResp, err := httpClient.Get(fmt.Sprintf("%s/inventory/product/%d", inventoryServiceURL, products[i].ID))
 		if err == nil && inventoryResp.StatusCode == http.StatusOK {
+			defer inventoryResp.Body.Close()
+
 			var inventory struct {
 				Quantity  int    `json:"quantity"`
 				Warehouse string `json:"warehouse"`
@@ -384,25 +358,25 @@ func getAllProductsWithInventory(w http.ResponseWriter, r *http.Request) {
 					Warehouse: inventory.Warehouse,
 				}
 			}
-			inventoryResp.Body.Close()
 		}
 	}
 
 	response, _ := json.Marshal(products)
-
-	// Guardar en cache por 3 minutos
 	redisClient.Set(ctx, cacheKey, response, 3*time.Minute)
 
-	w.Write(response)
+	if _, err := w.Write(response); err != nil {
+		log.Println("error writing product list:", err)
+	}
 }
 
 func sendError(w http.ResponseWriter, status int, message, detail string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(ErrorResponse{
-    Error: message, Message: detail,
-}); err != nil {
-    log.Println("error encoding error response:", err)
-}
 
+	if err := json.NewEncoder(w).Encode(ErrorResponse{
+		Error:   message,
+		Message: detail,
+	}); err != nil {
+		log.Println("error writing error response:", err)
+	}
 }
