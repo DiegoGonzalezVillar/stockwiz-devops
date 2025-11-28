@@ -1,15 +1,14 @@
 {
 	"info": {
 		"_postman_id": "c1f7a0b3-1e24-4d87-8d02-1a4c9b3e1f0e",
-		"name": "StockWiz API Functional Tests (GET Products)",
+		"name": "StockWiz API Functional Tests (Product Service)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "GET /health (Prueba Exitosa)",
+			"name": "GET /health",
 			"request": {
 				"method": "GET",
-				"header": [],
 				"url": {
 					"raw": "{{BASE_URL}}/health",
 					"host": [
@@ -19,22 +18,23 @@
 						"health"
 					]
 				}
-			},
-			"response": []
+			}
 		},
 		{
-			"name": "GET /products (Listado Exitosa)",
+			"name": "POST /api/products (Creación)",
 			"event": [
 				{
 					"listen": "test",
 					"script": {
 						"exec": [
-							"pm.test('Estado de respuesta 200', function () {",
-							"    pm.response.to.have.status(200);",
+							"pm.test('Estado de respuesta 201', function () {",
+							"    pm.response.to.have.status(201);",
 							"});",
-							"pm.test('Respuesta es un array de productos', function () {",
-							"    let response = pm.response.json();",
-							"    pm.expect(response).to.be.an('array');",
+							"pm.test('Guarda ID de Producto', function () {",
+							"    let response = pm.response.json();",
+							"    pm.expect(response.id).to.be.a('number').and.to.be.above(0);",
+							"    // Guarda el ID para usarlo en tests posteriores",
+							"    pm.environment.set(\"productId\", response.id);",
 							"});"
 						],
 						"type": "text/javascript"
@@ -42,22 +42,138 @@
 				}
 			],
 			"request": {
-    "method": "GET",
-    "header": [],
-    "url": {
-        "raw": "{{BASE_URL}}/api/products", 
-        "host": [
-            "{{BASE_URL}}"
-        ],
-        "path": [
-            "api",
-            "products"
-        ]
-    }
-},
-"response": []
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"name\":\"Teclado Gaming Test\", \"description\":\"Teclado para pruebas de integración\", \"price\": 79.99, \"category\": \"Gaming\"}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/api/products",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"api",
+						"products"
+					]
+				}
+			}
+		},
+		{
+			"name": "GET /api/products/{id} (Obtener por ID)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Estado de respuesta 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test('ID coincide', function () {",
+							"    let response = pm.response.json();",
+							"    pm.expect(response.id).to.equal(pm.environment.get(\"productId\"));",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/api/products/{{productId}}",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"api",
+						"products",
+						"{{productId}}"
+					]
+				}
+			}
+		},
+		{
+			"name": "PUT /api/products/{id} (Actualización)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Estado de respuesta 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test('Precio actualizado correctamente', function () {",
+							"    let response = pm.response.json();",
+							"    pm.expect(response.price).to.equal(85.00);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"price\": 85.00\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/api/products/{{productId}}",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"api",
+						"products",
+						"{{productId}}"
+					]
+				}
+			}
+		},
+		{
+			"name": "DELETE /api/products/{id} (Eliminación)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Estado de respuesta 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/api/products/{{productId}}",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"api",
+						"products",
+						"{{productId}}"
+					]
+				}
+			}
 		}
 	]
 }
-
-
