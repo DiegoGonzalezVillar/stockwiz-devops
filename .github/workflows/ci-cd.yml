@@ -20,6 +20,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login ECR
+        id: ecr_dev
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Debug ECR registry
+        run: echo "ECR_REGISTRY=${{ steps.ecr_dev.outputs.registry }}"
+
+      - name: Build & push fullstack container
+        run: |
+          REG="${{ steps.ecr_dev.outputs.registry }}"
+          docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
+          docker push $REG/stockwiz-dev/fullstack:dev-latest
+
       - name: Instalar Go
         uses: actions/setup-go@v4
         with:
@@ -39,14 +60,6 @@ jobs:
         with:
           name: golangci-lint-report-${{ github.sha }}
           path: api-gateway/golangci-lint.xml
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -74,16 +87,6 @@ jobs:
         working-directory: ./infra
 
         run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
-        
-      - name: Login ECR
-        id: ecr_dev
-        uses: aws-actions/amazon-ecr-login@v2
-        
-      - name: Build & push fullstack container
-        run: |
-          REG="${{ steps.ecr_dev.outputs.registry }}"
-          docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
-          docker push $REG/stockwiz-dev/fullstack:dev-latest
           
       - name: Terraform apply - DEV (Imagen Final)
         id: apply_dev_image
