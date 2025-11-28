@@ -128,6 +128,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # Login ECR para TEST
+      - name: Login ECR (TEST)
+        id: ecr_test
+        uses: aws-actions/amazon-ecr-login@v2
+  
+      # Build + push imagen TEST
+      - name: Build & push TEST container
+        run: |
+          REG="${{ steps.ecr_test.outputs.registry }}"
+          echo "Using TEST registry: $REG"
+          docker build -t $REG/stockwiz-test/fullstack:test-latest .
+          docker push $REG/stockwiz-test/fullstack:test-latest
+  
+      # Terraform TEST con imagen TEST
       - name: Terraform init - TEST
         working-directory: ./infra
         run: |
@@ -136,17 +150,17 @@ jobs:
             -backend-config="key=test/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
-
+  
       - name: Terraform apply - TEST (Despliegue Temporal)
         id: deploy_test
         working-directory: ./infra
         run: |
           ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/test.tfvars"
           terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="full_image=${{ steps.ecr_test.outputs.registry }}/stockwiz-test/fullstack:test-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
-
+      
       - name: Get ALB DNS Name - TEST
         id: get_test_url
         working-directory: ./infra
