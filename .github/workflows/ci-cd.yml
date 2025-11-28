@@ -149,7 +149,7 @@ jobs:
         id: get_test_url
         working-directory: ./infra
         run: |
-          # 💡 Asignar el DNS del ALB directamente a la variable de entorno global
+          # Asignar el DNS del ALB directamente a la variable de entorno global
           TEST_ALB_URL=$(terraform output -raw alb_dns_name)
           echo "TEST_BASE_URL=$TEST_ALB_URL" >> $GITHUB_ENV # Usaremos ${{ env.TEST_BASE_URL }}
         
@@ -162,7 +162,7 @@ jobs:
           npm install -g newman
           npm install -g newman-reporter-junitfull
 
-          echo "Esperando 30 segundos para la propagación del ALB..."
+          echo "Esperando 120 segundos para la propagación del ALB..."
           sleep 120 # CRÍTICO: Esperar al ALB
           
           echo "DEBUG: TEST_BASE_URL is ${{ env.TEST_BASE_URL }}"
