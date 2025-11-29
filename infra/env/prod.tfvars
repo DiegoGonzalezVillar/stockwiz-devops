@@ -7,4 +7,4 @@ ecr_repositories = [
   "fullstack"
 ]
 
-alert_email = "gonzalezvillardiego@gmail.com"
+alert_email = "diegogonza88@hotmail.com"
