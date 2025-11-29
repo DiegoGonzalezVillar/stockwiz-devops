@@ -1,4 +1,5 @@
 name: StockWiz CI/CD Pipeline - DEV , TEST Y PROD
+
 on:
   push:
     branches: ["develop"]
@@ -8,10 +9,8 @@ permissions:
   id-token: write
 
 jobs:
-
   deploy_dev:
     runs-on: ubuntu-latest
-    
     outputs:
       ecr_registry_url: ${{ steps.ecr_dev.outputs.registry }}
       dev_alb_url: ${{ steps.get_dev_url.outputs.dev_alb_url }}
@@ -19,26 +18,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Instalar Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-
-      - name: Ejecutar golangci-lint (con reporte)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: ./api-gateway
-          args: --timeout=5m --out-format=checkstyle:golangci-lint.xml
-
-
-      - name: Subir reporte golangci-lint
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golangci-lint-report-${{ github.sha }}
-          path: api-gateway/golangci-lint.xml
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -59,37 +38,61 @@ jobs:
             -backend-config="key=dev/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
-            
+
       - name: Ejecutar Flake8 y Generar Reporte
         id: flake8_check
         working-directory: ./product-service
         run: |
           pip install -r requirements.txt
           pip install flake8
-          # Usar || true para no detener el workflow
           flake8 main.py > flake8_report.txt 2>&1 || true
           cat flake8_report.txt
+      - name: Instalar Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Ejecutar golangci-lint (con reporte)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ./api-gateway
+          args: --timeout=5m --out-format=checkstyle:golangci-lint.xml
+
+ 
+      - name: Subir reporte golangci-lint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golangci-lint-report-${{ github.sha }}
+          path: api-gateway/golangci-lint.xml
 
       - name: Terraform apply - DEV (Infra Base)
         working-directory: ./infra
+        run: >
+          terraform apply -auto-approve -var-file="env/dev.tfvars"
+          -var="db_password_secret=${{ secrets.DB_PASSWORD_DEV }}"
+          -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}"
 
-        run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
-        
       - name: Login ECR
         id: ecr_dev
         uses: aws-actions/amazon-ecr-login@v2
-        
+
       - name: Build & push fullstack container
         run: |
           REG="${{ steps.ecr_dev.outputs.registry }}"
           docker build -t $REG/stockwiz-dev/fullstack:dev-latest .
           docker push $REG/stockwiz-dev/fullstack:dev-latest
-          
+
       - name: Terraform apply - DEV (Imagen Final)
         id: apply_dev_image
         working-directory: ./infra
-        run: "terraform apply -auto-approve -var-file=\"env/dev.tfvars\" -var=\"full_image=${{ steps.ecr_dev.outputs.registry }}/stockwiz-dev/fullstack:dev-latest\" -var=\"db_password_secret=${{ secrets.DB_PASSWORD_DEV }}\" -var=\"inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}\""
-        
+        run: >
+          terraform apply -auto-approve -var-file="env/dev.tfvars"
+          -var="full_image=${{ steps.ecr_dev.outputs.registry }}/stockwiz-dev/fullstack:dev-latest"
+          -var="db_password_secret=${{ secrets.DB_PASSWORD_DEV }}"
+          -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_DEV }}"
+
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -102,17 +105,18 @@ jobs:
         working-directory: ./infra
         run: echo "dev_alb_url=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
 
-
-  #TEST
+  # 
+  # TEST
+  # 
   test_functional:
     name: Run Functional Tests (TEST Env)
     runs-on: ubuntu-latest
-    needs: deploy_dev 
-    
+    needs: deploy_dev
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -133,79 +137,96 @@ jobs:
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
 
+      - name: Terraform apply - TEST (Infra Base)
+        working-directory: ./infra
+        run: >
+          terraform apply -auto-approve -var-file="env/test.tfvars"
+          -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}"
+          -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
+
+      # Login ECR para TEST
+      - name: Login ECR (TEST)
+        id: ecr_test
+        uses: aws-actions/amazon-ecr-login@v2
+  
+      # Build + push imagen TEST
+      - name: Build & push TEST container
+        run: |
+          REG="${{ steps.ecr_test.outputs.registry }}"
+          echo "Using TEST registry: $REG"
+          docker build -t $REG/stockwiz-test/fullstack:test-latest .
+          docker push $REG/stockwiz-test/fullstack:test-latest
+  
+      
+  
       - name: Terraform apply - TEST (Despliegue Temporal)
         id: deploy_test
         working-directory: ./infra
         run: |
           ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/test.tfvars"
-          
-          # CRÍTICO: Usar el output directo del Job deploy_dev para la imagen
           terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="full_image=${{ steps.ecr_test.outputs.registry }}/stockwiz-test/fullstack:test-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
-            
+      
       - name: Get ALB DNS Name - TEST
         id: get_test_url
         working-directory: ./infra
         run: |
-          # 💡 Asignar el DNS del ALB directamente a la variable de entorno global
           TEST_ALB_URL=$(terraform output -raw alb_dns_name)
-          echo "TEST_BASE_URL=$TEST_ALB_URL" >> $GITHUB_ENV # Usaremos ${{ env.TEST_BASE_URL }}
-        
+          echo "TEST_BASE_URL=$TEST_ALB_URL" >> $GITHUB_ENV
+
       - name: Ejecutar Pruebas Funcionales (Newman)
         working-directory: ./tests
         run: |
           echo "Iniciando pruebas Newman..."
-          
-          # Instalar globalmente para asegurar disponibilidad
           npm install -g newman
           npm install -g newman-reporter-junitfull
 
-          echo "Esperando 30 segundos para la propagación del ALB..."
-          sleep 120 # CRÍTICO: Esperar al ALB
-          
+          echo "Esperando 120 segundos para la propagación del ALB..."
+          sleep 120
+
           echo "DEBUG: TEST_BASE_URL is ${{ env.TEST_BASE_URL }}"
-          
-          # Ejecutar Newman usando --global-var
+
           newman run stockwiz_api_collection.json \
             --global-var "BASE_URL=${{ env.TEST_BASE_URL }}" \
             --reporters cli,junitfull \
             --reporter-junit-export newman_report.xml
-            
-          # CRÍTICO: Forzar la falla del Job si Newman falla (código de salida != 0)
+
           if [ $? -ne 0 ]; then
             echo "ERROR: Las pruebas funcionales fallaron."
             exit 1
           fi
 
       - name: Subir Reporte Newman como Artifact
-        if: always() # Subir el reporte aunque falle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reporte-pruebas-funcionales-${{ github.sha }}
           path: tests/results/newman_report.xml
-          
+
       - name: Destruir Infraestructura TEST
-        if: always() # Ejecutar siempre, incluso si las pruebas fallaron
+        if: always()
         working-directory: ./infra
         run: |
           echo "Destruyendo ambiente TEST después de la ejecución de pruebas..."
-
           terraform destroy -var-file="env/test.tfvars" -auto-approve \
             -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_TEST }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_TEST }}"
-# PRODUCCIÓN
+
+  # 
+  # PRODUCCIÓN
+  # 
   deploy_prod:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: test_functional
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -213,10 +234,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
-  
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-  
+
       - name: Terraform init - PROD
         working-directory: ./infra
         run: |
@@ -225,14 +246,59 @@ jobs:
             -backend-config="key=prod/terraform.tfstate" \
             -backend-config="region=us-east-1" \
             -backend-config="encrypt=true"
+
+      - name: Terraform apply - PROD (Infra Base)
+        working-directory: ./infra
+        run: >
+          terraform apply -auto-approve -var-file="env/prod.tfvars"
+          -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD}}"
+          -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
+
+      # Login ECR para PROD
+      - name: Login ECR (PROD)
+        id: ecr_prod
+        uses: aws-actions/amazon-ecr-login@v2
   
+      # Build + push imagen PROD
+      - name: Build & push PROD container
+        run: |
+          REG="${{ steps.ecr_prod.outputs.registry }}"
+          echo "Using PROD registry: $REG"
+          docker build -t $REG/stockwiz-prod/fullstack:prod-latest .
+          docker push $REG/stockwiz-prod/fullstack:prod-latest
+
       - name: Terraform apply - PROD (Despliegue Final)
         working-directory: ./infra
         run: |
           ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/prod.tfvars"
-          
-          # CRÍTICO: Usar la imagen creada en el Job deploy_dev (si tu proceso de building es allí)
           terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-prod/fullstack:prod-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
+  
+  notifier_deploy_prod:
+    name: Notifier deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy_prod
+  
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+  
+      - name: Notify successful PROD deploy (Invoke Lambda)
+        if: ${{ success() }}
+        run: |
+          aws lambda invoke \
+            --function-name "stockwiz-prod-deploy-notifier" \
+            --invocation-type Event \
+            --payload '{}' \
+            lambda_output.json
+          echo "Lambda invoked, response:"
+          cat lambda_output.json
+
+
