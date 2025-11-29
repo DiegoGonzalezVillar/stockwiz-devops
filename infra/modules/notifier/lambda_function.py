@@ -1,19 +1,29 @@
 import json
 import boto3
+import os
 
 sns = boto3.client('sns')
+TOPIC_ARN = os.environ.get("TOPIC_ARN")
 
 def lambda_handler(event, context):
-
-    topic_arn = next((r['Sns']['TopicArn'] for r in event.get('Records', []) if 'Sns' in r), None)
     
+    # Intentar obtener ARN desde SNS (si el evento vino desde un disparo SNS real)
+    topic_arn = next(
+        (r['Sns']['TopicArn'] for r in event.get('Records', []) if 'Sns' in r),
+        None
+    )
+
+    # Si viene {} desde GitHub Actions, usamos la variable de entorno
+    if not topic_arn:
+        topic_arn = TOPIC_ARN
+
     message_data = {
         "deployment_status": "SUCCESS",
         "service": "StockWiz Microservices",
-        "environment": "DEV",
-        "detail": "El despliegue de infraestructura de Terraform ha finalizado con éxito."
+        "environment": "PROD",
+        "detail": "El despliegue en producción se completó correctamente."
     }
-    
+
     formatted_message = f"""
     --- Alerta de Despliegue de Infraestructura ---
     
@@ -24,12 +34,12 @@ def lambda_handler(event, context):
     
     ----------------------------------------------
     """
-    if topic_arn:
-        sns.publish(
-            TopicArn=topic_arn,
-            Message=formatted_message, 
-            Subject=f"[ALERTA DEV] Despliegue Exitoso: {message_data['service']}"
-        )
+
+    sns.publish(
+        TopicArn=topic_arn,
+        Message=formatted_message,
+        Subject=f"[ALERTA PROD] Despliegue Exitoso: {message_data['service']}"
+    )
 
     return {
         'statusCode': 200,

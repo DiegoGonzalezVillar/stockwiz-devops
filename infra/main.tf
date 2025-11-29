@@ -54,6 +54,12 @@ module "notifier" {
   aws_region    = var.aws_region
   alert_email   = var.alert_email 
   lab_role_arn  = data.aws_iam_role.lab_role.arn
+
+  environment {
+    variables = {
+      TOPIC_ARN = aws_sns_topic.deploy_alerts.arn
+    }
+  }
 }
 
 module "monitoring" {
