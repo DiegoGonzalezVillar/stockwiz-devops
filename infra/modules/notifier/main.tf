@@ -27,6 +27,12 @@ resource "aws_lambda_function" "deploy_notifier" {
   handler          = "lambda_function.lambda_handler"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   runtime          = "python3.11"
+
+   environment {
+    variables = {
+      TOPIC_ARN = aws_sns_topic.deploy_alerts.arn
+    }
+  }
 }
 
 # 5. INVOCACIÓN MANUAL (simula el final del deploy)
