@@ -262,8 +262,8 @@ jobs:
       # Build + push imagen PROD
       - name: Build & push PROD container
         run: |
-          REG="${{ steps.ecr_test.outputs.registry }}"
-          echo "Using TEST registry: $REG"
+          REG="${{ steps.ecr_prod.outputs.registry }}"
+          echo "Using PROD registry: $REG"
           docker build -t $REG/stockwiz-prod/fullstack:prod-latest .
           docker push $REG/stockwiz-prod/fullstack:prod-latest
 
@@ -272,6 +272,33 @@ jobs:
         run: |
           ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/prod.tfvars"
           terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-dev/fullstack:dev-latest" \
+            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-prod/fullstack:prod-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
+  
+  notifier_deploy_prod:
+    name: Notifier deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy_prod
+  
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+  
+      - name: Notify successful PROD deploy (Invoke Lambda)
+        if: ${{ success() }}
+        run: |
+          aws lambda invoke \
+            --function-name "stockwiz-prod-deploy-notifier" \
+            --invocation-type Event \
+            --payload '{}' \
+            lambda_output.json
+          echo "Lambda invoked, response:"
+          cat lambda_output.json
+
+
