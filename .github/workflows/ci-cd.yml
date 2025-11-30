@@ -272,7 +272,7 @@ jobs:
         run: |
           ABS_TFVARS_PATH="${GITHUB_WORKSPACE}/infra/env/prod.tfvars"
           terraform apply -auto-approve -var-file="$ABS_TFVARS_PATH" \
-            -var="full_image=${{ needs.deploy_dev.outputs.ecr_registry_url }}/stockwiz-prod/fullstack:prod-latest" \
+            -var="full_image=${{ needs.deploy_prod.outputs.ecr_registry_url }}/stockwiz-prod/fullstack:prod-latest" \
             -var="db_password_secret=${{ secrets.DB_PASSWORD_PROD }}" \
             -var="inventory_api_key_secret=${{ secrets.INVENTORY_KEY_PROD }}"
   
