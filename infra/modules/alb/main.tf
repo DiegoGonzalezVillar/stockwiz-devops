@@ -8,9 +8,7 @@ resource "aws_lb" "app_lb" {
   }
 }
 
-####################################
 # TARGET GROUP
-####################################
 resource "aws_lb_target_group" "tg" {
   name     = "${var.project_name}-${var.env}-tg"
   port     = 8000
@@ -32,9 +30,7 @@ resource "aws_lb_target_group" "tg" {
   }
 }
 
-####################################
 # LISTENER
-####################################
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = aws_lb.app_lb.arn
   port              = 80

@@ -1,12 +1,12 @@
-###############################
+
 # CloudWatch Dashboard
-###############################
+
 resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = "${var.project_name}-${var.env}-dashboard"
 
   dashboard_body = jsonencode({
     widgets = [
-      # Widget 1: ECS Service CPU Utilization
+    
       {
         type = "metric",
         width = 24,
@@ -26,7 +26,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           region = var.aws_region
         }
       },
-      # Widget 2: Application Load Balancer 5xx Errors
+
       {
         type = "metric",
         width = 24,
@@ -49,9 +49,7 @@ resource "aws_cloudwatch_dashboard" "main" {
   })
 }
 
-#########################################
-# Alarm: High CPU on ECS Service
-#########################################
+# Alarma: High CPU on ECS Service
 resource "aws_cloudwatch_metric_alarm" "ecs_high_cpu" {
   alarm_name          = "${var.project_name}-${var.env}-ecs-high-cpu"
   comparison_operator = "GreaterThanThreshold"
@@ -73,9 +71,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_high_cpu" {
   alarm_description = "ECS CPU usage is above 80% for 5 minutes"
 }
 
-#########################################
-# Alarm: ALB 5xx Errors
-#########################################
+
+# Alarma: ALB 5xx Errors
+
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   alarm_name          = "${var.project_name}-${var.env}-alb-5xx-errors"
   comparison_operator = "GreaterThanThreshold"

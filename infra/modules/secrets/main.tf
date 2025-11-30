@@ -7,7 +7,6 @@ resource "aws_secretsmanager_secret" "db_password" {
 
 resource "aws_secretsmanager_secret_version" "db_password_version" {
   secret_id     = aws_secretsmanager_secret.db_password.id
-  # Este valor debe venir de una variable sensible pasada por el CI/CD
   secret_string = var.db_password_secret 
 }
 
@@ -22,6 +21,5 @@ resource "aws_secretsmanager_secret" "inventory_api_key" {
 
 resource "aws_secretsmanager_secret_version" "inventory_api_key_version" {
   secret_id     = aws_secretsmanager_secret.inventory_api_key.id
-  # El valor real se pasa desde el CI/CD
   secret_string = var.inventory_api_key_secret 
 }

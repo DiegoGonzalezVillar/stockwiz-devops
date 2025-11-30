@@ -1,8 +1,6 @@
 data "aws_availability_zones" "available" {}
 
-##############################
 # VPC
-##############################
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -15,9 +13,7 @@ resource "aws_vpc" "main" {
   }
 }
 
-##############################
 # INTERNET GATEWAY
-##############################
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
   tags = {
@@ -25,9 +21,7 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-##############################
 # PUBLIC SUBNETS (2)
-##############################
 resource "aws_subnet" "public_subnet" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -40,9 +34,7 @@ resource "aws_subnet" "public_subnet" {
   }
 }
 
-##############################
 # PUBLIC ROUTE TABLE
-##############################
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
   tags = {
@@ -60,9 +52,7 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-##############################
-# PRIVATE SUBNETS (2)
-##############################
+# PRIVATE SUBNETS 
 resource "aws_subnet" "private_subnet" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -75,10 +65,7 @@ resource "aws_subnet" "private_subnet" {
   }
 }
 
-##############################
 # NAT GATEWAY & ELASTIC IP
-##############################
-# Asignar una IP elástica (EIP) para el NAT Gateway
 resource "aws_eip" "nat" {
   count = 2
 }
@@ -114,9 +101,6 @@ resource "aws_route_table_association" "private_assoc" {
   route_table_id = aws_route_table.private_rt[count.index].id
 }
 
-##############################
-# SECURITY GROUPS
-##############################
 
 # ALB security group
 resource "aws_security_group" "alb_sg" {
