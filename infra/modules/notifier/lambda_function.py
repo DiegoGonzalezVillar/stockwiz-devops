@@ -13,7 +13,6 @@ def lambda_handler(event, context):
         None
     )
 
-    # Si viene {} desde GitHub Actions, usamos la variable de entorno
     if not topic_arn:
         topic_arn = TOPIC_ARN
 
